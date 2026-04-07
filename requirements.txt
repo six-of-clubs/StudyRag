@@ -1,0 +1,30 @@
+# =============================================================================
+# StudyRAG Dependencies
+# =============================================================================
+
+# --- Config ---
+python-dotenv>=1.0.0
+
+# --- Document Parsing ---
+PyMuPDF>=1.24.0            # PDF text + metadata extraction
+python-pptx>=0.6.23        # PowerPoint slides
+
+# --- Embeddings ---
+sentence-transformers>=2.7.0
+
+# --- Vector Store ---
+chromadb>=0.5.0
+
+# --- LLM ---
+ollama>=0.3.0              # Official Ollama Python client
+
+# --- API ---
+fastapi>=0.111.0
+uvicorn[standard]>=0.30.0
+python-multipart>=0.0.9    # file upload support
+
+# --- Reranker (Phase 2 — install when needed) ---
+# cross-encoder via sentence-transformers, no extra dep
+
+# --- Eval (Phase 2) ---
+# No extra deps — uses built-in json + the above
