@@ -75,7 +75,7 @@ def ingest_chunks(chunks: list[Chunk]) -> int:
         logger.warning("No chunks to ingest.")
         return 0
 
-    # Load embedding model
+    # Load embedding model (add a possible switch here afterwards) !!
     logger.info("Loading embedding model '%s' ...", settings.embedding_model)
     model = SentenceTransformer(settings.embedding_model)
 

@@ -1,9 +1,5 @@
 """
-Centralised configuration for StudyRAG.
-
-Reads from .env file (or real environment variables) and exposes a single
-`settings` object that every other module imports.  Values are validated at
-startup so mis-configuration fails fast.
+Reading from .env file and creating a single ''settings'' object that every other module imports.  
 """
 
 import os

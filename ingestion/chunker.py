@@ -27,7 +27,7 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 @dataclass
 class Chunk:
-    """A text fragment ready for embedding, with full provenance."""
+    """A text fragment ready for embedding"""
 
     text: str
     metadata: dict = field(default_factory=dict)
@@ -38,7 +38,7 @@ def _find_split_point(text: str, target: int) -> int:
     """
     Find the best position to split `text` at approximately `target` chars.
 
-    Prefers splitting at a sentence boundary. Falls back to whitespace.
+    Splitting at a sentence boundary, falling back to whitespace!
     Falls back to the hard target if neither is found.
     """
     if target >= len(text):
@@ -55,12 +55,12 @@ def _find_split_point(text: str, target: int) -> int:
     if best > 0:
         return best
 
-    # Fall back: last whitespace before target
+    # Fall back (if text has zero full sentence before target): last whitespace before target !!
     space = text.rfind(" ", 0, target)
     if space > 0:
-        return space + 1  # keep the space on the left side
+        return space + 1  # keeping the space on the left side
 
-    return target
+    return target # plan C: hard fall on target (no whitespace too)
 
 
 def chunk_document(doc: Document) -> list[Chunk]:
@@ -83,7 +83,7 @@ def chunk_document(doc: Document) -> list[Chunk]:
         # Determine end of this chunk
         end = min(start + size, len(text))
 
-        # If we're not at the end, try to split at a sentence boundary
+        # If we're not at the end (text remains), try to split at a sentence boundary
         if end < len(text):
             end = _find_split_point(text, end)
 
@@ -99,7 +99,7 @@ def chunk_document(doc: Document) -> list[Chunk]:
             index += 1
 
         # Advance: move forward by (actual chunk length - overlap)
-        step = max(end - start - overlap, 1)  # always move at least 1 char
+        step = max(end - start - overlap, 1)  # we always move at least 1 char
         start += step
 
     logger.debug(

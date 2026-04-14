@@ -2,8 +2,8 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-venv/
-.venv/
+s_rag/
+.s_rag/
 
 # Environment
 .env

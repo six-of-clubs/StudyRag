@@ -113,7 +113,7 @@ def _load_text(path: Path) -> list[Document]:
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Public API -> rest of the app will call these
 # ---------------------------------------------------------------------------
 
 _LOADERS = {

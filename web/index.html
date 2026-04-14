@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StudyRAG</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h1 class="logo">Study<span class="logo-accent">RAG</span></h1>
+    </div>
+
+    <!-- Chats Section -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-title">Chats</span>
+        <button class="btn-icon" id="btn-new-chat" title="New chat">+</button>
+      </div>
+      <ul class="chat-list" id="chat-list"></ul>
+    </div>
+
+    <!-- Sources Section -->
+    <div class="sidebar-section">
+      <div class="section-header">
+        <span class="section-title">Sources</span>
+        <button class="btn-icon" id="btn-new-folder" title="New folder">+</button>
+      </div>
+      <ul class="folder-list" id="folder-list"></ul>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN AREA ===== -->
+  <main class="main" id="main">
+
+    <!-- Empty State -->
+    <div class="empty-state" id="empty-state">
+      <div class="empty-icon">📚</div>
+      <h2>StudyRAG</h2>
+      <p>Create a chat and select a source folder to start asking questions about your documents.</p>
+    </div>
+
+    <!-- Chat View (hidden until a chat is selected) -->
+    <div class="chat-view hidden" id="chat-view">
+      <!-- Chat header -->
+      <div class="chat-header">
+        <h2 class="chat-title" id="chat-title">New Chat</h2>
+        <div class="chat-header-controls">
+          <select class="folder-select" id="folder-select" title="Select source folder">
+            <option value="">No source folder</option>
+          </select>
+          <button class="btn-small" id="btn-chat-upload" title="Upload temporary document to this chat">
+            📎 Attach
+          </button>
+          <input type="file" id="chat-file-input" class="hidden"
+                 accept=".pdf,.pptx,.txt,.md" />
+        </div>
+      </div>
+
+      <!-- Messages -->
+      <div class="messages" id="messages"></div>
+
+      <!-- Input -->
+      <div class="input-area">
+        <textarea
+          id="query-input"
+          placeholder="Ask a question about your documents..."
+          rows="1"
+        ></textarea>
+        <button class="btn-send" id="btn-send" title="Send">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13" />
+            <polygon points="22 2 15 22 11 13 2 9 22 2" />
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Folder Detail View (hidden until a folder is selected) -->
+    <div class="folder-view hidden" id="folder-view">
+      <div class="folder-view-header">
+        <h2 id="folder-view-title">Folder</h2>
+        <div class="folder-view-controls">
+          <button class="btn-small" id="btn-folder-upload">📄 Upload Document</button>
+          <input type="file" id="folder-file-input" class="hidden"
+                 accept=".pdf,.pptx,.txt,.md" multiple />
+          <button class="btn-small btn-danger" id="btn-delete-folder">Delete Folder</button>
+        </div>
+      </div>
+      <div class="folder-documents" id="folder-documents">
+        <p class="muted">No documents yet. Upload files to add them as permanent sources.</p>
+      </div>
+    </div>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
