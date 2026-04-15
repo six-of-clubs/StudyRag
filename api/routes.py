@@ -22,10 +22,7 @@ from api.models import (
     QueryRequest, QueryResponse,
 )
 from api.state import state
-from generation.llm import generate
-from generation.prompts import SYSTEM_PROMPT, build_context_block
-from generation.citation import parse_citations
-from retrieval.retriever import RetrievedChunk
+from orchestrator.pipeline import ask as pipeline_ask
 
 logger = logging.getLogger(__name__)
 
@@ -214,37 +211,11 @@ def query(body: QueryRequest):
     # Save user message
     state.add_message(body.chat_id, "user", body.question)
 
-    # Retrieve scoped chunks
-    raw_chunks = state.retrieve_scoped(body.question, folder_id, body.chat_id)
-
-    if not raw_chunks:
-        decline_msg = (
-            "I cannot answer this question based on the provided documents. "
-            "No sufficiently relevant passages were found."
-        )
-        state.add_message(body.chat_id, "assistant", decline_msg, declined=True)
-        return QueryResponse(answer=decline_msg, sources=[], declined=True)
-
-    # Convert to RetrievedChunk for prompt builder and citation parser
-    retrieved = [
-        RetrievedChunk(
-            text=r["text"], metadata=r["metadata"], similarity=r["similarity"],
-        )
-        for r in raw_chunks
-    ]
-
-    # Build prompt
-    from generation.prompts import build_user_prompt
-    user_prompt = build_user_prompt(body.question, retrieved)
-
-    # Generate
+    # Run the full pipeline through the orchestrator
     try:
-        response_text = generate(SYSTEM_PROMPT, user_prompt)
+        result = pipeline_ask(body.question, folder_id=folder_id, chat_id=body.chat_id)
     except ConnectionError as e:
         raise HTTPException(503, str(e))
-
-    # Parse citations
-    result = parse_citations(response_text, retrieved)
 
     # Save assistant message
     sources_dicts = [

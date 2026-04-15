@@ -1,30 +1,28 @@
 """
-Vector store for StudyRAG.
+CLI ingestion for StudyRAG.
 
-Embeds text chunks using sentence-transformers, stores them in ChromaDB
-with their metadata, and provides a CLI entry point for batch ingestion.
+Ingests documents into a specific source folder's ChromaDB collection
+via the state manager. There is no global collection — every document
+belongs to exactly one folder.
 
 Usage:
-    python -m ingestion.store --source ./documents/
-    python -m ingestion.store --source ./documents/lecture3.pdf
-    python -m ingestion.store --reset   # wipe the store and re-ingest
+    python -m ingestion.store --folder "Linear Algebra" --source ./documents/linalg/
+    python -m ingestion.store --folder "Calculus" --source ./documents/calc101.pdf
+    python -m ingestion.store --list                       # show all folders
+    python -m ingestion.store --folder "Linear Algebra" --reset  # wipe a folder
+
+If the folder doesn't exist yet, it will be created automatically.
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import logging
 import sys
 import time
 from pathlib import Path
 
-import chromadb
-from sentence_transformers import SentenceTransformer
-
 from config import settings
-from ingestion.chunker import Chunk, chunk_documents
-from ingestion.loader import load_directory, load_file
 
 logging.basicConfig(
     level=logging.INFO,
@@ -33,136 +31,101 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-COLLECTION_NAME = "studyrag"
+
+def _get_state():
+    """Late import to avoid circular imports at module level."""
+    from api.state import state
+    return state
 
 
-def _get_chroma_client() -> chromadb.ClientAPI:
-    """Create a persistent ChromaDB client."""
-    persist_dir = Path(settings.chroma_persist_dir)
-    persist_dir.mkdir(parents=True, exist_ok=True)
-    return chromadb.PersistentClient(path=str(persist_dir))
+def list_folders():
+    """Print all existing source folders."""
+    state = _get_state()
+    folders = state.list_folders()
+
+    if not folders:
+        print("  No source folders yet.")
+        print("  Create one with: python -m ingestion.store --folder \"Name\" --source ./path/")
+        return
+
+    print(f"  {'Folder':<30} {'Documents':<12} {'ID'}")
+    print("  " + "-" * 60)
+    for f in folders:
+        doc_count = len(f.documents)
+        print(f"  {f.name:<30} {doc_count:<12} {f.id}")
 
 
-def _get_or_create_collection(client: chromadb.ClientAPI) -> chromadb.Collection:
-    """Get or create the main collection with cosine similarity."""
-    return client.get_or_create_collection(
-        name=COLLECTION_NAME,
-        metadata={"hnsw:space": "cosine"},
-    )
-
-
-def _chunk_id(chunk: Chunk) -> str:
+def resolve_folder(folder_name: str) -> str:
     """
-    Deterministic ID for a chunk based on its source and position.
-
-    This means re-ingesting the same file won't create duplicates.
+    Find a folder by name, or create it if it doesn't exist.
+    Returns the folder ID.
     """
-    key = (
-        f"{chunk.metadata.get('source_file', '')}"
-        f":p{chunk.metadata.get('page_number', 0)}"
-        f":c{chunk.metadata.get('chunk_index', 0)}"
-    )
-    return hashlib.sha256(key.encode()).hexdigest()[:16]
+    state = _get_state()
+
+    # Try to find existing folder (case-insensitive match)
+    for f in state.list_folders():
+        if f.name.lower() == folder_name.lower():
+            logger.info("Found existing folder '%s' (id=%s)", f.name, f.id)
+            return f.id
+
+    # Create new folder
+    folder = state.create_folder(folder_name)
+    logger.info("Created new folder '%s' (id=%s)", folder.name, folder.id)
+    return folder.id
 
 
-def ingest_chunks(chunks: list[Chunk]) -> int:
+def reset_folder(folder_name: str):
+    """Delete a folder and all its documents, then recreate it empty."""
+    state = _get_state()
+
+    for f in state.list_folders():
+        if f.name.lower() == folder_name.lower():
+            doc_count = len(f.documents)
+            state.delete_folder(f.id)
+            logger.info(
+                "Deleted folder '%s' (%d document(s) removed).", f.name, doc_count
+            )
+            # Recreate empty
+            new = state.create_folder(f.name)
+            logger.info("Recreated empty folder '%s' (id=%s)", new.name, new.id)
+            return
+
+    logger.warning("Folder '%s' not found — nothing to reset.", folder_name)
+
+
+def ingest_to_folder(folder_id: str, source: Path) -> int:
     """
-    Embed and store a list of chunks in ChromaDB.
+    Ingest a file or directory into a folder's collection.
 
-    Returns the number of chunks added (skips existing ones).
+    Returns total number of chunks added across all files.
     """
-    if not chunks:
-        logger.warning("No chunks to ingest.")
-        return 0
+    state = _get_state()
+    total = 0
 
-    # Load embedding model (add a possible switch here afterwards) !!
-    logger.info("Loading embedding model '%s' ...", settings.embedding_model)
-    model = SentenceTransformer(settings.embedding_model)
-
-    # Prepare IDs and check for existing
-    client = _get_chroma_client()
-    collection = _get_or_create_collection(client)
-
-    ids = [_chunk_id(c) for c in chunks]
-    texts = [c.text for c in chunks]
-    metadatas = [c.metadata for c in chunks]
-
-    # Filter out already-stored chunks
-    existing = set()
-    try:
-        result = collection.get(ids=ids)
-        existing = set(result["ids"])
-    except Exception:
-        pass  # collection might be empty
-
-    new_indices = [i for i, id_ in enumerate(ids) if id_ not in existing]
-    if not new_indices:
-        logger.info("All %d chunk(s) already in store. Nothing to add.", len(chunks))
-        return 0
-
-    new_ids = [ids[i] for i in new_indices]
-    new_texts = [texts[i] for i in new_indices]
-    new_metadatas = [metadatas[i] for i in new_indices]
-
-    # Embed
-    logger.info("Embedding %d new chunk(s) ...", len(new_ids))
-    start = time.time()
-    embeddings = model.encode(new_texts, show_progress_bar=True).tolist()
-    elapsed = time.time() - start
-    logger.info("Embedded in %.1fs (%.0f chunks/sec)", elapsed, len(new_ids) / elapsed)
-
-    # Store
-    collection.add(
-        ids=new_ids,
-        documents=new_texts,
-        embeddings=embeddings,
-        metadatas=new_metadatas,
-    )
-    logger.info(
-        "Stored %d chunk(s). Collection now has %d total.",
-        len(new_ids), collection.count(),
-    )
-    return len(new_ids)
-
-
-def reset_store():
-    """Delete all data from the vector store."""
-    client = _get_chroma_client()
-    try:
-        client.delete_collection(COLLECTION_NAME)
-        logger.info("Collection '%s' deleted.", COLLECTION_NAME)
-    except Exception:
-        logger.info("Nothing to reset — collection doesn't exist.")
-
-
-def ingest_path(source: str | Path, reset: bool = False) -> int:
-    """
-    Full ingestion pipeline: load → chunk → embed → store.
-
-    Args:
-        source: path to a file or directory
-        reset: if True, wipe the store before ingesting
-
-    Returns:
-        number of new chunks added
-    """
-    if reset:
-        reset_store()
-
-    source = Path(source)
-    if source.is_dir():
-        docs = load_directory(source)
-    elif source.is_file():
-        docs = load_file(source)
+    if source.is_file():
+        files = [source]
+    elif source.is_dir():
+        from ingestion.loader import SUPPORTED_EXTENSIONS
+        files = sorted(
+            f for f in source.rglob("*")
+            if f.suffix.lower() in SUPPORTED_EXTENSIONS
+        )
+        if not files:
+            logger.warning("No supported files found in %s", source)
+            return 0
+        logger.info("Found %d file(s) in %s", len(files), source)
     else:
         raise FileNotFoundError(f"Path not found: {source}")
 
-    if not docs:
-        logger.warning("No documents loaded from %s", source)
-        return 0
+    for file_path in files:
+        try:
+            count = state.ingest_to_folder(folder_id, file_path)
+            total += count
+            logger.info("  %s → %d chunk(s)", file_path.name, count)
+        except Exception as e:
+            logger.error("  Failed to ingest %s: %s", file_path.name, e)
 
-    chunks = chunk_documents(docs)
-    return ingest_chunks(chunks)
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -171,18 +134,27 @@ def ingest_path(source: str | Path, reset: bool = False) -> int:
 
 def main():
     parser = argparse.ArgumentParser(
-        description="StudyRAG — Ingest documents into the vector store",
+        description="StudyRAG — Ingest documents into a source folder",
+    )
+    parser.add_argument(
+        "--folder",
+        type=str,
+        help="Name of the source folder to ingest into (created if it doesn't exist)",
     )
     parser.add_argument(
         "--source",
         type=str,
-        default="./documents",
-        help="Path to a file or directory to ingest (default: ./documents/)",
+        help="Path to a file or directory to ingest",
+    )
+    parser.add_argument(
+        "--list",
+        action="store_true",
+        help="List all existing source folders",
     )
     parser.add_argument(
         "--reset",
         action="store_true",
-        help="Wipe the vector store before ingesting",
+        help="Wipe the specified folder and recreate it empty (requires --folder)",
     )
     args = parser.parse_args()
 
@@ -191,12 +163,51 @@ def main():
     print("=" * 60)
     print()
 
+    # List mode
+    if args.list:
+        list_folders()
+        print()
+        return
+
+    # Validation
+    if not args.folder:
+        print("  Error: --folder is required.")
+        print("  Use --list to see existing folders.")
+        print()
+        print("  Examples:")
+        print('    python -m ingestion.store --folder "Linear Algebra" --source ./documents/linalg/')
+        print('    python -m ingestion.store --folder "Calculus" --source ./documents/calc.pdf')
+        print("    python -m ingestion.store --list")
+        sys.exit(1)
+
+    # Reset mode
+    if args.reset:
+        reset_folder(args.folder)
+        if not args.source:
+            print()
+            print("  Folder reset complete.")
+            print("=" * 60)
+            return
+
+    # Ingest mode
+    if not args.source:
+        print("  Error: --source is required for ingestion.")
+        print('  Example: python -m ingestion.store --folder "Linear Algebra" --source ./documents/linalg/')
+        sys.exit(1)
+
+    source = Path(args.source)
+    if not source.exists():
+        print(f"  Error: path not found: {source}")
+        sys.exit(1)
+
+    folder_id = resolve_folder(args.folder)
+
     start = time.time()
-    added = ingest_path(args.source, reset=args.reset)
+    added = ingest_to_folder(folder_id, source)
     elapsed = time.time() - start
 
     print()
-    print(f"  Done in {elapsed:.1f}s — {added} new chunk(s) added.")
+    print(f"  Done in {elapsed:.1f}s — {added} new chunk(s) added to '{args.folder}'.")
     print("=" * 60)
 
 

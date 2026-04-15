@@ -306,74 +306,31 @@ class StateManager:
             chat.title = title
             self._save()
 
-    # --- Scoped retrieval ---
+    # --- Collection name resolution ---
 
-    def retrieve_scoped(self, query: str, folder_id: str | None,
-                        chat_id: str | None) -> list[dict]:
+    def get_collection_names(self, folder_id: str | None,
+                             chat_id: str | None) -> list[str]:
         """
-        Retrieve chunks from the folder collection and/or the chat's
-        temp collection. Returns a merged, deduplicated, sorted list.
+        Resolve a folder ID and/or chat ID into a list of ChromaDB
+        collection names that the retriever should search.
+
+        This is the ONLY place that maps user-facing IDs to storage.
+        The retriever receives these names and searches nothing else,
+        ensuring strict isolation between academic subjects.
         """
-        from retrieval.embedder import embed_query
+        names: list[str] = []
 
-        query_embedding = embed_query(query)
-        all_results = []
-
-        collections_to_search = []
-
-        # Add folder collection
         if folder_id and folder_id in self.folders:
-            col_name = self.folders[folder_id].collection_name
-            try:
-                col = self._chroma.get_collection(col_name)
-                if col.count() > 0:
-                    collections_to_search.append(col)
-            except Exception:
-                pass
+            names.append(self.folders[folder_id].collection_name)
 
-        # Add chat temp collection
         if chat_id:
             col_name = _chat_collection_name(chat_id)
-            try:
-                col = self._chroma.get_collection(col_name)
-                if col.count() > 0:
-                    collections_to_search.append(col)
-            except Exception:
-                pass
+            # Only include if the chat actually has temp docs
+            chat = self.chats.get(chat_id)
+            if chat and chat.temp_docs:
+                names.append(col_name)
 
-        for col in collections_to_search:
-            n = min(settings.top_k, col.count())
-            results = col.query(
-                query_embeddings=[query_embedding],
-                n_results=n,
-                include=["documents", "metadatas", "distances"],
-            )
-            for text, meta, dist in zip(
-                results["documents"][0],
-                results["metadatas"][0],
-                results["distances"][0],
-            ):
-                sim = 1.0 - dist
-                if sim >= settings.similarity_threshold:
-                    all_results.append({
-                        "text": text,
-                        "metadata": meta,
-                        "similarity": sim,
-                    })
-
-        # Sort by similarity, deduplicate by text hash, take top_k
-        all_results.sort(key=lambda r: r["similarity"], reverse=True)
-        seen = set()
-        unique = []
-        for r in all_results:
-            h = hash(r["text"][:200])
-            if h not in seen:
-                seen.add(h)
-                unique.append(r)
-            if len(unique) >= settings.top_k:
-                break
-
-        return unique
+        return names
 
 
 # Module-level singleton
