@@ -2,7 +2,20 @@
    StudyRAG — Frontend Application
    ========================================================================== */
 
-const API = "";  // same origin
+const API = "";
+
+// ---------------------------------------------------------------------------
+// SVG icon templates (no emojis)
+// ---------------------------------------------------------------------------
+
+const ICONS = {
+  chat: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
+  folder: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
+  dots: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>`,
+  pin: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/></svg>`,
+  file: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
+  trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
+};
 
 // ---------------------------------------------------------------------------
 // State
@@ -11,8 +24,9 @@ const API = "";  // same origin
 let chats = [];
 let folders = [];
 let activeChatId = null;
-let activeFolderId = null;   // folder being viewed in main area
-let currentView = "empty";   // "empty" | "chat" | "folder"
+let activeFolderId = null;
+let currentView = "empty";
+let pendingEmptyChat = null;
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -50,7 +64,7 @@ async function loadFolders() {
 }
 
 // ---------------------------------------------------------------------------
-// Rendering: Sidebar
+// Sidebar: Chat list
 // ---------------------------------------------------------------------------
 
 function renderChatList() {
@@ -62,31 +76,39 @@ function renderChatList() {
     return;
   }
 
-  // Show newest first
-  [...chats].reverse().forEach(chat => {
+  const sorted = [...chats].sort((a, b) => {
+    if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
+    return -1;
+  }).reverse();
+
+  sorted.forEach(chat => {
     const li = document.createElement("li");
     if (currentView === "chat" && activeChatId === chat.id) li.classList.add("active");
 
+    const pinHtml = chat.pinned ? `<span class="pin-indicator">${ICONS.pin}</span>` : "";
+
     li.innerHTML = `
-      <span class="list-item-icon">💬</span>
+      <span class="list-item-icon">${ICONS.chat}</span>
       <span class="list-item-name">${esc(chat.title)}</span>
-      <span class="list-item-badge">${chat.message_count}</span>
-      <button class="list-item-delete" title="Delete chat">&times;</button>
+      ${pinHtml}
+      <button class="list-item-dots" title="Options">${ICONS.dots}</button>
     `;
 
     li.querySelector(".list-item-name").addEventListener("click", () => openChat(chat.id));
-    li.querySelector(".list-item-delete").addEventListener("click", async (e) => {
+
+    const dotsBtn = li.querySelector(".list-item-dots");
+    dotsBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (confirm(`Delete "${chat.title}"?`)) {
-        await api("DELETE", `/api/chats/${chat.id}`);
-        if (activeChatId === chat.id) showEmpty();
-        await loadChats();
-      }
+      showContextMenu(dotsBtn, "chat", chat);
     });
 
     ul.appendChild(li);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Sidebar: Folder list
+// ---------------------------------------------------------------------------
 
 function renderFolderList() {
   const ul = document.getElementById("folder-list");
@@ -97,35 +119,44 @@ function renderFolderList() {
     return;
   }
 
-  folders.forEach(folder => {
+  const sorted = [...folders].sort((a, b) => {
+    if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
+    return 0;
+  });
+
+  sorted.forEach(folder => {
     const li = document.createElement("li");
     if (currentView === "folder" && activeFolderId === folder.id) li.classList.add("active");
 
+    const pinHtml = folder.pinned ? `<span class="pin-indicator">${ICONS.pin}</span>` : "";
+
     li.innerHTML = `
-      <span class="list-item-icon">📁</span>
+      <span class="list-item-icon">${ICONS.folder}</span>
       <span class="list-item-name">${esc(folder.name)}</span>
-      <span class="list-item-badge">${folder.document_count}</span>
-      <button class="list-item-delete" title="Delete folder">&times;</button>
+      ${pinHtml}
+      <button class="list-item-dots" title="Options">${ICONS.dots}</button>
     `;
 
     li.querySelector(".list-item-name").addEventListener("click", () => openFolder(folder.id));
-    li.querySelector(".list-item-delete").addEventListener("click", async (e) => {
+
+    const dotsBtn = li.querySelector(".list-item-dots");
+    dotsBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      if (confirm(`Delete folder "${folder.name}" and all its documents?`)) {
-        await api("DELETE", `/api/folders/${folder.id}`);
-        if (activeFolderId === folder.id) showEmpty();
-        await loadFolders();
-      }
+      showContextMenu(dotsBtn, "folder", folder);
     });
 
     ul.appendChild(li);
   });
 }
 
+// ---------------------------------------------------------------------------
+// Folder selector (hidden <select> + custom dropdown)
+// ---------------------------------------------------------------------------
+
 function renderFolderSelect() {
   const sel = document.getElementById("folder-select");
   const current = sel.value;
-  sel.innerHTML = `<option value="">No source folder</option>`;
+  sel.innerHTML = `<option value="">No folder</option>`;
   folders.forEach(f => {
     const opt = document.createElement("option");
     opt.value = f.id;
@@ -133,7 +164,184 @@ function renderFolderSelect() {
     sel.appendChild(opt);
   });
   sel.value = current;
+  updateFolderPickerLabel();
 }
+
+function updateFolderPickerLabel() {
+  const sel = document.getElementById("folder-select");
+  const label = document.getElementById("folder-picker-label");
+  const btn = document.getElementById("btn-folder-picker");
+  const selected = folders.find(f => f.id === sel.value);
+  if (selected) {
+    label.textContent = selected.name;
+    btn.classList.add("has-folder");
+  } else {
+    label.textContent = "No folder";
+    btn.classList.remove("has-folder");
+  }
+}
+
+document.getElementById("btn-folder-picker").addEventListener("click", (e) => {
+  e.stopPropagation();
+  closeAllDropdowns();
+
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+  const sel = document.getElementById("folder-select");
+
+  const dd = document.createElement("div");
+  dd.className = "folder-dropdown";
+  dd.id = "folder-dropdown-live";
+  dd.style.left = rect.left + "px";
+  dd.style.bottom = (window.innerHeight - rect.top + 4) + "px";
+
+  const noItem = document.createElement("button");
+  noItem.className = "folder-dropdown-item" + (!sel.value ? " active" : "");
+  noItem.textContent = "No folder";
+  noItem.addEventListener("click", () => {
+    sel.value = "";
+    updateFolderPickerLabel();
+    syncFolderToChat();
+    dd.remove();
+  });
+  dd.appendChild(noItem);
+
+  folders.forEach(f => {
+    const item = document.createElement("button");
+    item.className = "folder-dropdown-item" + (sel.value === f.id ? " active" : "");
+    item.innerHTML = `${ICONS.folder} ${esc(f.name)}`;
+    item.addEventListener("click", () => {
+      sel.value = f.id;
+      updateFolderPickerLabel();
+      syncFolderToChat();
+      dd.remove();
+    });
+    dd.appendChild(item);
+  });
+
+  document.body.appendChild(dd);
+
+  setTimeout(() => {
+    const handler = (ev) => {
+      if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener("click", handler); }
+    };
+    document.addEventListener("click", handler);
+  }, 0);
+});
+
+async function syncFolderToChat() {
+  if (!activeChatId) return;
+  const folderId = document.getElementById("folder-select").value || null;
+  await api("PATCH", `/api/chats/${activeChatId}/folder?folder_id=${folderId || ""}`);
+}
+
+// ---------------------------------------------------------------------------
+// Context menu (three-dot)
+// Receives the BUTTON ELEMENT directly so getBoundingClientRect is reliable.
+// ---------------------------------------------------------------------------
+
+let ctxTarget = null;
+
+function showContextMenu(buttonEl, type, data) {
+  closeAllDropdowns();
+  ctxTarget = { type, data };
+
+  const menu = document.getElementById("context-menu");
+  const pinLabel = document.getElementById("ctx-pin-label");
+  pinLabel.textContent = data.pinned ? "Unpin" : "Pin";
+
+  menu.classList.remove("hidden");
+
+  // Position: appear right below the dots button, aligned to the left edge of sidebar item
+  const rect = buttonEl.getBoundingClientRect();
+
+  // Place below the button, right-aligned to the button
+  let top = rect.bottom + 4;
+  let left = rect.right - 150;  // menu is ~150px wide, align right edge to button
+
+  // If it would go below viewport, place above instead
+  if (top + 120 > window.innerHeight) {
+    top = rect.top - 120;
+  }
+
+  // Don't go off-screen left
+  if (left < 4) left = 4;
+
+  menu.style.top = top + "px";
+  menu.style.left = left + "px";
+
+  setTimeout(() => {
+    const handler = (ev) => {
+      if (!menu.contains(ev.target)) {
+        menu.classList.add("hidden");
+        document.removeEventListener("click", handler);
+      }
+    };
+    document.addEventListener("click", handler);
+  }, 0);
+}
+
+document.getElementById("context-menu").addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn || !ctxTarget) return;
+
+  const { type, data } = ctxTarget;
+  const action = btn.dataset.action;
+
+  document.getElementById("context-menu").classList.add("hidden");
+
+  if (action === "rename") {
+    const currentName = data.title || data.name;
+    showModal("Rename", currentName, async (newName) => {
+      if (!newName.trim() || newName.trim() === currentName) return;
+      if (type === "chat") {
+        await api("PATCH", `/api/chats/${data.id}/rename?title=${encodeURIComponent(newName.trim())}`);
+        if (activeChatId === data.id) document.getElementById("chat-title").textContent = newName.trim();
+        await loadChats();
+      } else {
+        await api("PATCH", `/api/folders/${data.id}/rename?name=${encodeURIComponent(newName.trim())}`);
+        if (activeFolderId === data.id) document.getElementById("folder-view-title").textContent = newName.trim();
+        await loadFolders();
+      }
+    });
+  }
+
+  if (action === "pin") {
+    if (type === "chat") {
+      await api("PATCH", `/api/chats/${data.id}/pin`);
+      await loadChats();
+    } else {
+      await api("PATCH", `/api/folders/${data.id}/pin`);
+      await loadFolders();
+    }
+  }
+
+  if (action === "delete") {
+    const name = data.title || data.name;
+    if (!confirm(`Delete "${name}"?`)) return;
+    if (type === "chat") {
+      await api("DELETE", `/api/chats/${data.id}`);
+      if (activeChatId === data.id) { pendingEmptyChat = null; showEmpty(); }
+      await loadChats();
+    } else {
+      await api("DELETE", `/api/folders/${data.id}`);
+      if (activeFolderId === data.id) showEmpty();
+      await loadFolders();
+    }
+  }
+
+  ctxTarget = null;
+});
+
+function closeAllDropdowns() {
+  document.getElementById("context-menu").classList.add("hidden");
+  const dd = document.getElementById("folder-dropdown-live");
+  if (dd) dd.remove();
+}
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") closeAllDropdowns();
+});
 
 // ---------------------------------------------------------------------------
 // Views
@@ -162,29 +370,28 @@ async function openChat(chatId) {
   renderChatList();
   renderFolderList();
 
-  // Load full chat
   const chat = await api("GET", `/api/chats/${chatId}`);
   document.getElementById("chat-title").textContent = chat.title;
 
-  // Set folder selector
-  const sel = document.getElementById("folder-select");
-  sel.value = chat.folder_id || "";
+  document.getElementById("folder-select").value = chat.folder_id || "";
+  updateFolderPickerLabel();
 
-  // Render messages
+  const chatView = document.getElementById("chat-view");
+  if (chat.messages.length === 0) {
+    chatView.classList.add("empty-chat");
+    document.getElementById("chat-title").textContent = "How can I help you today?";
+  } else {
+    chatView.classList.remove("empty-chat");
+  }
+
   renderMessages(chat.messages);
-
-  // Focus input
   document.getElementById("query-input").focus();
 }
 
 function renderMessages(messages) {
   const container = document.getElementById("messages");
   container.innerHTML = "";
-
-  messages.forEach(msg => {
-    container.appendChild(createMessageEl(msg));
-  });
-
+  messages.forEach(msg => container.appendChild(createMessageEl(msg)));
   container.scrollTop = container.scrollHeight;
 }
 
@@ -206,7 +413,6 @@ function createMessageEl(msg) {
     <div class="message-content">${esc(msg.content)}</div>
     ${sourcesHtml}
   `;
-
   return div;
 }
 
@@ -225,19 +431,28 @@ async function openFolder(folderId) {
   const folder = folders.find(f => f.id === folderId);
   document.getElementById("folder-view-title").textContent = folder ? folder.name : "Folder";
 
-  // Load documents
   const docs = await api("GET", `/api/folders/${folderId}/documents`);
   const container = document.getElementById("folder-documents");
 
   if (docs.length === 0) {
     container.innerHTML = `<p class="muted">No documents yet. Upload files to add them as permanent sources.</p>`;
   } else {
-    container.innerHTML = docs.map(d => `
-      <div class="doc-item">
-        <span class="doc-item-name">📄 ${esc(d.filename)}</span>
-        <span class="doc-item-chunks">${d.chunk_count} chunks</span>
-      </div>
-    `).join("");
+    container.innerHTML = "";
+    docs.forEach(d => {
+      const item = document.createElement("div");
+      item.className = "doc-item";
+      item.innerHTML = `
+        <span class="doc-item-name">${ICONS.file} ${esc(d.filename)}</span>
+        <button class="doc-item-delete" title="Remove document">${ICONS.trash}</button>
+      `;
+      item.querySelector(".doc-item-delete").addEventListener("click", async () => {
+        if (!confirm(`Remove "${d.filename}" from this folder?`)) return;
+        await api("DELETE", `/api/folders/${folderId}/documents/${encodeURIComponent(d.filename)}`);
+        await loadFolders();
+        openFolder(folderId);
+      });
+      container.appendChild(item);
+    });
   }
 }
 
@@ -245,14 +460,22 @@ async function openFolder(folderId) {
 // Actions
 // ---------------------------------------------------------------------------
 
-// New chat
 document.getElementById("btn-new-chat").addEventListener("click", async () => {
+  if (pendingEmptyChat) {
+    const existing = chats.find(c => c.id === pendingEmptyChat);
+    if (existing && existing.message_count === 0) {
+      openChat(pendingEmptyChat);
+      return;
+    }
+    pendingEmptyChat = null;
+  }
+
   const chat = await api("POST", "/api/chats", { title: "New Chat" });
+  pendingEmptyChat = chat.id;
   await loadChats();
   openChat(chat.id);
 });
 
-// New folder (modal)
 document.getElementById("btn-new-folder").addEventListener("click", () => {
   showModal("New Source Folder", "Folder name", async (name) => {
     if (!name.trim()) return;
@@ -261,14 +484,6 @@ document.getElementById("btn-new-folder").addEventListener("click", () => {
   });
 });
 
-// Folder select change
-document.getElementById("folder-select").addEventListener("change", async (e) => {
-  if (!activeChatId) return;
-  const folderId = e.target.value || null;
-  await api("PATCH", `/api/chats/${activeChatId}/folder?folder_id=${folderId || ""}`);
-});
-
-// Chat file upload (temporary)
 document.getElementById("btn-chat-upload").addEventListener("click", () => {
   document.getElementById("chat-file-input").click();
 });
@@ -281,8 +496,12 @@ document.getElementById("chat-file-input").addEventListener("change", async (e) 
   const fd = new FormData();
   fd.append("file", file);
 
-  // Show temporary notice
   const container = document.getElementById("messages");
+  const chatView = document.getElementById("chat-view");
+  chatView.classList.remove("empty-chat");
+  const chatInfo = chats.find(c => c.id === activeChatId);
+  document.getElementById("chat-title").textContent = chatInfo ? chatInfo.title : "New Chat";
+
   const notice = document.createElement("div");
   notice.className = "temp-notice";
   notice.textContent = `Uploading ${file.name}...`;
@@ -291,13 +510,12 @@ document.getElementById("chat-file-input").addEventListener("change", async (e) 
 
   try {
     const result = await api("POST", `/api/chats/${activeChatId}/upload`, fd);
-    notice.textContent = `📎 ${file.name} attached (${result.chunk_count} chunks) — available in this chat only`;
+    notice.textContent = `${file.name} attached (${result.chunk_count} chunks) — available in this chat only`;
   } catch (err) {
-    notice.textContent = `❌ Failed to upload ${file.name}: ${err.message}`;
+    notice.textContent = `Failed to upload ${file.name}: ${err.message}`;
   }
 });
 
-// Folder file upload (permanent)
 document.getElementById("btn-folder-upload").addEventListener("click", () => {
   document.getElementById("folder-file-input").click();
 });
@@ -321,7 +539,6 @@ document.getElementById("folder-file-input").addEventListener("change", async (e
   openFolder(activeFolderId);
 });
 
-// Delete folder
 document.getElementById("btn-delete-folder").addEventListener("click", async () => {
   if (!activeFolderId) return;
   const folder = folders.find(f => f.id === activeFolderId);
@@ -339,13 +556,11 @@ document.getElementById("btn-delete-folder").addEventListener("click", async () 
 const input = document.getElementById("query-input");
 const btnSend = document.getElementById("btn-send");
 
-// Auto-resize textarea
 input.addEventListener("input", () => {
   input.style.height = "auto";
   input.style.height = Math.min(input.scrollHeight, 140) + "px";
 });
 
-// Send on Enter (Shift+Enter for newline)
 input.addEventListener("keydown", (e) => {
   if (e.key === "Enter" && !e.shiftKey) {
     e.preventDefault();
@@ -365,12 +580,16 @@ async function sendQuery() {
   input.style.height = "auto";
   btnSend.disabled = true;
 
-  const container = document.getElementById("messages");
+  const chatView = document.getElementById("chat-view");
+  chatView.classList.remove("empty-chat");
+  const chatInfo = chats.find(c => c.id === activeChatId);
+  document.getElementById("chat-title").textContent = chatInfo ? chatInfo.title : "New Chat";
 
-  // Render user message immediately
+  if (pendingEmptyChat === activeChatId) pendingEmptyChat = null;
+
+  const container = document.getElementById("messages");
   container.appendChild(createMessageEl({ role: "user", content: question, sources: [] }));
 
-  // Render loading indicator
   const loading = document.createElement("div");
   loading.className = "message assistant loading";
   loading.innerHTML = `
@@ -395,16 +614,11 @@ async function sendQuery() {
       declined: result.declined,
     }));
 
-    // Update chat list message count
     await loadChats();
 
-    // Auto-rename chat if it's the first message
     const chat = chats.find(c => c.id === activeChatId);
     if (chat && chat.message_count <= 2 && chat.title === "New Chat") {
-      const title = question.length > 40 ? question.slice(0, 40) + "…" : question;
-      await api("PATCH", `/api/chats/${activeChatId}/rename?title=${encodeURIComponent(title)}`);
-      document.getElementById("chat-title").textContent = title;
-      await loadChats();
+      extractAndRename(activeChatId, question);
     }
 
   } catch (err) {
@@ -422,6 +636,22 @@ async function sendQuery() {
   input.focus();
 }
 
+async function extractAndRename(chatId, question) {
+  try {
+    const { title } = await api("POST", `/api/extract-topic?question=${encodeURIComponent(question)}`);
+    await api("PATCH", `/api/chats/${chatId}/rename?title=${encodeURIComponent(title)}`);
+    if (activeChatId === chatId) document.getElementById("chat-title").textContent = title;
+    await loadChats();
+  } catch (err) {
+    const fallback = question.split(/\s+/).slice(0, 5).join(" ");
+    try {
+      await api("PATCH", `/api/chats/${chatId}/rename?title=${encodeURIComponent(fallback)}`);
+      if (activeChatId === chatId) document.getElementById("chat-title").textContent = fallback;
+      await loadChats();
+    } catch (_) {}
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Modal
 // ---------------------------------------------------------------------------
@@ -430,13 +660,15 @@ function showModal(title, placeholder, onConfirm) {
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
 
+  const isRename = placeholder !== "Folder name";
+
   overlay.innerHTML = `
     <div class="modal">
       <h3>${esc(title)}</h3>
-      <input type="text" placeholder="${esc(placeholder)}" autofocus />
+      <input type="text" placeholder="${esc(placeholder)}" value="${isRename ? esc(placeholder) : ''}" autofocus />
       <div class="modal-actions">
         <button class="btn-modal btn-modal-cancel">Cancel</button>
-        <button class="btn-modal btn-modal-confirm">Create</button>
+        <button class="btn-modal btn-modal-confirm">Save</button>
       </div>
     </div>
   `;
@@ -456,6 +688,7 @@ function showModal(title, placeholder, onConfirm) {
 
   document.body.appendChild(overlay);
   inputEl.focus();
+  inputEl.select();
 }
 
 // ---------------------------------------------------------------------------

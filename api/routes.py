@@ -54,6 +54,7 @@ def list_folders():
         FolderInfo(
             id=f.id, name=f.name,
             document_count=len(f.documents),
+            pinned=f.pinned,
         )
         for f in state.list_folders()
     ]
@@ -69,6 +70,37 @@ def create_folder(body: FolderCreate):
 def delete_folder(folder_id: str):
     if not state.delete_folder(folder_id):
         raise HTTPException(404, "Folder not found")
+    return {"deleted": True}
+
+
+@router.patch("/api/folders/{folder_id}/rename")
+def rename_folder(folder_id: str, name: str):
+    folder = state.get_folder(folder_id)
+    if not folder:
+        raise HTTPException(404, "Folder not found")
+    state.rename_folder(folder_id, name)
+    return {"name": name}
+
+
+@router.patch("/api/folders/{folder_id}/pin")
+def toggle_pin_folder(folder_id: str):
+    folder = state.get_folder(folder_id)
+    if not folder:
+        raise HTTPException(404, "Folder not found")
+    pinned = state.toggle_pin_folder(folder_id)
+    return {"pinned": pinned}
+
+
+@router.delete("/api/folders/{folder_id}/documents/{filename}")
+def delete_folder_document(folder_id: str, filename: str):
+    folder = state.get_folder(folder_id)
+    if not folder:
+        raise HTTPException(404, "Folder not found")
+    if filename not in folder.documents:
+        raise HTTPException(404, "Document not found")
+    # Remove from folder tracking (chunks remain but won't match after re-ingest)
+    del folder.documents[filename]
+    state._save()
     return {"deleted": True}
 
 
@@ -114,6 +146,7 @@ def list_chats():
         ChatInfo(
             id=c.id, title=c.title,
             folder_id=c.folder_id,
+            pinned=c.pinned,
             message_count=len(c.messages),
         )
         for c in state.list_chats()
@@ -173,6 +206,38 @@ def rename_chat(chat_id: str, title: str):
         raise HTTPException(404, "Chat not found")
     state.rename_chat(chat_id, title)
     return {"title": title}
+
+
+@router.patch("/api/chats/{chat_id}/pin")
+def toggle_pin_chat(chat_id: str):
+    chat = state.get_chat(chat_id)
+    if not chat:
+        raise HTTPException(404, "Chat not found")
+    pinned = state.toggle_pin_chat(chat_id)
+    return {"pinned": pinned}
+
+
+@router.post("/api/extract-topic")
+def extract_topic(question: str):
+    """Use the LLM to extract a short topic title from a question."""
+    from generation.llm import generate
+    try:
+        title = generate(
+            system_prompt=(
+                "Extract the academic topic from the user's question. "
+                "Reply with ONLY a short title (2-5 words). No quotes, no punctuation, no explanation. "
+                "Examples: 'Matrix Eigenvalues', 'Gradient Descent', 'Fourier Transform'."
+            ),
+            user_prompt=question,
+        )
+        title = title.strip().strip('"').strip("'")[:60]
+        if not title:
+            title = question[:40]
+        return {"title": title}
+    except Exception:
+        # Fallback: first few words
+        words = question.split()[:5]
+        return {"title": " ".join(words)[:40]}
 
 
 @router.post("/api/chats/{chat_id}/upload", response_model=DocumentInfo)

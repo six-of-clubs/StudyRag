@@ -69,6 +69,7 @@ class FolderState:
     id: str
     name: str
     collection_name: str
+    pinned: bool = False
     documents: dict[str, int] = field(default_factory=dict)  # filename → chunk count
 
 
@@ -85,6 +86,7 @@ class ChatState:
     id: str
     title: str
     folder_id: str | None = None
+    pinned: bool = False
     messages: list[MessageState] = field(default_factory=list)
     temp_docs: dict[str, int] = field(default_factory=dict)  # filename → chunk count
 
@@ -128,12 +130,14 @@ class StateManager:
             data["folders"][fid] = {
                 "id": f.id, "name": f.name,
                 "collection_name": f.collection_name,
+                "pinned": f.pinned,
                 "documents": f.documents,
             }
         for cid, c in self.chats.items():
             data["chats"][cid] = {
                 "id": c.id, "title": c.title,
                 "folder_id": c.folder_id,
+                "pinned": c.pinned,
                 "messages": [
                     {"role": m.role, "content": m.content,
                      "sources": m.sources, "declined": m.declined}
@@ -304,6 +308,28 @@ class StateManager:
         chat = self.chats.get(chat_id)
         if chat:
             chat.title = title
+            self._save()
+
+    def toggle_pin_chat(self, chat_id: str) -> bool:
+        chat = self.chats.get(chat_id)
+        if chat:
+            chat.pinned = not chat.pinned
+            self._save()
+            return chat.pinned
+        return False
+
+    def toggle_pin_folder(self, folder_id: str) -> bool:
+        folder = self.folders.get(folder_id)
+        if folder:
+            folder.pinned = not folder.pinned
+            self._save()
+            return folder.pinned
+        return False
+
+    def rename_folder(self, folder_id: str, name: str):
+        folder = self.folders.get(folder_id)
+        if folder:
+            folder.name = name
             self._save()
 
     # --- Collection name resolution ---

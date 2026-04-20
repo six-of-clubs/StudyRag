@@ -32,8 +32,8 @@
   --font-mono:     'JetBrains Mono', monospace;
 
   --sidebar-width: 280px;
-  --radius:        8px;
-  --radius-sm:     5px;
+  --radius:        12px;
+  --radius-sm:     6px;
   --transition:    0.15s ease;
 }
 
@@ -59,7 +59,7 @@ body {
 }
 
 /* --- Scrollbar --- */
-::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
@@ -168,8 +168,7 @@ body {
   transition: all var(--transition);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 6px;
+  gap: 8px;
 }
 
 .chat-list li:hover, .folder-list li:hover {
@@ -180,7 +179,6 @@ body {
 .chat-list li.active, .folder-list li.active {
   background: var(--accent-glow);
   color: var(--accent);
-  border-left: 2px solid var(--accent);
 }
 
 .list-item-name {
@@ -192,32 +190,116 @@ body {
 
 .list-item-icon {
   flex-shrink: 0;
-  font-size: 14px;
-  margin-right: 6px;
-}
-
-.list-item-badge {
-  font-size: 11px;
-  font-family: var(--font-mono);
   color: var(--text-muted);
-  flex-shrink: 0;
+  display: flex;
+  align-items: center;
 }
 
-.list-item-delete {
-  opacity: 0;
-  background: none;
+.list-item-icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.active .list-item-icon { color: var(--accent); }
+
+.pin-indicator {
+  flex-shrink: 0;
+  color: var(--accent-dim);
+  display: flex;
+  align-items: center;
+}
+
+.pin-indicator svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* --- Three-dot button ---
+   Always visible but very subtle, highlights on hover.
+   Background must be fully transparent to match the list row. */
+
+.list-item-dots {
+  background: transparent;
   border: none;
-  color: var(--red);
+  color: var(--text-muted);
   cursor: pointer;
-  font-size: 14px;
-  padding: 0 2px;
-  transition: opacity var(--transition);
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color var(--transition), background var(--transition);
   flex-shrink: 0;
+  opacity: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
 }
 
-.chat-list li:hover .list-item-delete,
-.folder-list li:hover .list-item-delete {
-  opacity: 1;
+.chat-list li:hover .list-item-dots,
+.folder-list li:hover .list-item-dots {
+  opacity: 0.7;
+}
+
+.list-item-dots:hover {
+  opacity: 1 !important;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ==========================================================================
+   CONTEXT MENU (three-dot dropdown)
+   ========================================================================== */
+
+.context-menu {
+  position: fixed;
+  z-index: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 150px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.03);
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all var(--transition);
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.ctx-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.ctx-item.ctx-danger {
+  color: var(--text-muted);
+}
+
+.ctx-item.ctx-danger:hover {
+  background: rgba(217, 83, 79, 0.1);
+  color: var(--red);
+}
+
+.ctx-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
 }
 
 /* ==========================================================================
@@ -246,7 +328,7 @@ body {
 }
 
 .empty-icon {
-  font-size: 48px;
+  color: var(--text-muted);
   margin-bottom: 8px;
 }
 
@@ -276,10 +358,6 @@ body {
 .chat-header {
   padding: 14px 24px;
   border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
   background: var(--bg-surface);
   flex-shrink: 0;
 }
@@ -294,69 +372,6 @@ body {
   text-overflow: ellipsis;
 }
 
-.chat-header-controls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
-}
-
-/* --- Folder selector --- */
-
-.folder-select {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: 12px;
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  max-width: 200px;
-  transition: border-color var(--transition);
-}
-
-.folder-select:hover, .folder-select:focus {
-  border-color: var(--accent-dim);
-  outline: none;
-}
-
-.folder-select option {
-  background: var(--bg-raised);
-  color: var(--text-primary);
-}
-
-/* --- Small buttons --- */
-
-.btn-small {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--transition);
-}
-
-.btn-small:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-light);
-}
-
-.btn-danger {
-  color: var(--red);
-}
-
-.btn-danger:hover {
-  background: rgba(217, 83, 79, 0.1);
-  border-color: var(--red-dim);
-  color: var(--red);
-}
-
 /* --- Messages area --- */
 
 .messages {
@@ -366,6 +381,32 @@ body {
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+/* When chat is empty (new), center the input vertically */
+.chat-view.empty-chat .messages {
+  display: none;
+}
+
+.chat-view.empty-chat {
+  justify-content: center;
+  align-items: center;
+}
+
+.chat-view.empty-chat .input-wrapper {
+  padding-bottom: 20vh;
+}
+
+.chat-view.empty-chat .chat-header {
+  border-bottom-color: transparent;
+  background: transparent;
+}
+
+.chat-view.empty-chat .chat-title {
+  text-align: center;
+  font-size: 22px;
+  color: var(--text-secondary);
+  font-weight: 400;
 }
 
 .message {
@@ -386,7 +427,6 @@ body {
 }
 
 .message.user .message-role { color: var(--accent-dim); }
-.message.assistant .message-role { color: var(--text-muted); }
 
 .message-content {
   font-size: 14px;
@@ -474,57 +514,156 @@ body {
   50% { opacity: 0; }
 }
 
-/* --- Input area --- */
+/* ==========================================================================
+   INPUT AREA — Claude-style layout
+   The wrapper takes full width, the box is centered with max-width.
+   ========================================================================== */
 
-.input-area {
-  padding: 16px 24px 20px;
-  border-top: 1px solid var(--border);
-  display: flex;
-  align-items: flex-end;
-  gap: 10px;
-  max-width: 768px;
+.input-wrapper {
   width: 100%;
-  margin: 0 auto;
+  padding: 0 24px 20px;
   flex-shrink: 0;
 }
 
-#query-input {
-  flex: 1;
+.input-box {
+  max-width: 720px;
+  width: 100%;
+  margin: 0 auto;
   background: var(--bg-raised);
   border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: border-color var(--transition);
+}
+
+.input-box:focus-within {
+  border-color: var(--border-light);
+}
+
+#query-input {
+  width: 100%;
+  background: transparent;
+  border: none;
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 14px;
-  padding: 12px 14px;
-  border-radius: var(--radius);
+  padding: 14px 16px 6px;
   resize: none;
   outline: none;
   max-height: 140px;
   line-height: 1.5;
-  transition: border-color var(--transition);
-}
-
-#query-input:focus {
-  border-color: var(--accent-dim);
 }
 
 #query-input::placeholder {
   color: var(--text-muted);
 }
 
+/* --- Toolbar row under textarea --- */
+
+.input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 6px 6px;
+}
+
+.toolbar-left, .toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+/* Plus button (attach) */
+.toolbar-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  transition: all var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.toolbar-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+/* Folder picker button */
+.folder-picker {
+  padding: 5px 8px;
+  border-radius: 8px;
+  max-width: 200px;
+}
+
+.folder-picker-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 120px;
+}
+
+.folder-picker .chevron {
+  flex-shrink: 0;
+  opacity: 0.5;
+}
+
+.folder-picker.has-folder {
+  color: var(--accent);
+  background: rgba(201, 165, 90, 0.08);
+}
+
+.folder-picker.has-folder:hover {
+  background: rgba(201, 165, 90, 0.14);
+}
+
+.hidden-select {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+
+/* Model indicator */
+.model-btn {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: default;
+  padding: 5px 8px;
+}
+
+.model-btn:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+/* Send button — rounded, accent-colored like Claude's */
 .btn-send {
   background: var(--accent);
   border: none;
   color: var(--bg-base);
-  width: 42px;
-  height: 42px;
-  border-radius: var(--radius);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background var(--transition);
+  transition: all var(--transition);
   flex-shrink: 0;
+  margin-left: 2px;
 }
 
 .btn-send:hover {
@@ -532,7 +671,7 @@ body {
 }
 
 .btn-send:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
 }
 
@@ -589,15 +728,75 @@ body {
 .doc-item-name {
   font-size: 13px;
   color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.doc-item-chunks {
-  font-size: 11px;
-  font-family: var(--font-mono);
+.doc-item-name svg {
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
-/* --- Modal overlay for folder name input --- */
+.doc-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: all var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.doc-item:hover .doc-item-delete {
+  opacity: 1;
+}
+
+.doc-item-delete:hover {
+  color: var(--red);
+  background: rgba(217, 83, 79, 0.1);
+}
+
+/* --- Small buttons --- */
+
+.btn-small {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.btn-small:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--border-light);
+}
+
+.btn-danger {
+  color: var(--red);
+}
+
+.btn-danger:hover {
+  background: rgba(217, 83, 79, 0.1);
+  border-color: var(--red-dim);
+  color: var(--red);
+}
+
+/* ==========================================================================
+   MODAL
+   ========================================================================== */
 
 .modal-overlay {
   position: fixed;
@@ -606,7 +805,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 100;
+  z-index: 600;
 }
 
 .modal {
@@ -677,10 +876,52 @@ body {
   background: var(--accent-dim);
 }
 
-/* --- Upload progress --- */
+/* --- Folder dropdown in toolbar --- */
 
-.upload-status {
-  font-size: 12px;
+.folder-dropdown {
+  position: fixed;
+  z-index: 500;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 200px;
+  max-height: 260px;
+  overflow-y: auto;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+
+.folder-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 5px;
+  transition: all var(--transition);
+  text-align: left;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.folder-dropdown-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.folder-dropdown-item.active {
   color: var(--accent);
-  padding: 4px 0;
+}
+
+.folder-dropdown-item svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
 }

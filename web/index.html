@@ -35,56 +35,94 @@
   <!-- ===== MAIN AREA ===== -->
   <main class="main" id="main">
 
-    <!-- Empty State -->
+    <!-- Empty State (no chat selected) -->
     <div class="empty-state" id="empty-state">
-      <div class="empty-icon">📚</div>
+      <div class="empty-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          <line x1="8" y1="7" x2="16" y2="7" />
+          <line x1="8" y1="11" x2="14" y2="11" />
+        </svg>
+      </div>
       <h2>StudyRAG</h2>
       <p>Create a chat and select a source folder to start asking questions about your documents.</p>
     </div>
 
-    <!-- Chat View (hidden until a chat is selected) -->
+    <!-- Chat View -->
     <div class="chat-view hidden" id="chat-view">
       <!-- Chat header -->
       <div class="chat-header">
         <h2 class="chat-title" id="chat-title">New Chat</h2>
-        <div class="chat-header-controls">
-          <select class="folder-select" id="folder-select" title="Select source folder">
-            <option value="">No source folder</option>
-          </select>
-          <button class="btn-small" id="btn-chat-upload" title="Upload temporary document to this chat">
-            📎 Attach
-          </button>
-          <input type="file" id="chat-file-input" class="hidden"
-                 accept=".pdf,.pptx,.txt,.md" />
-        </div>
       </div>
 
       <!-- Messages -->
       <div class="messages" id="messages"></div>
 
-      <!-- Input -->
-      <div class="input-area">
-        <textarea
-          id="query-input"
-          placeholder="Ask a question about your documents..."
-          rows="1"
-        ></textarea>
-        <button class="btn-send" id="btn-send" title="Send">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="22" y1="2" x2="11" y2="13" />
-            <polygon points="22 2 15 22 11 13 2 9 22 2" />
-          </svg>
-        </button>
+      <!-- Input area: textarea + toolbar -->
+      <div class="input-wrapper" id="input-wrapper">
+        <div class="input-box">
+          <textarea
+            id="query-input"
+            placeholder="Ask a question about your documents..."
+            rows="1"
+          ></textarea>
+          <div class="input-toolbar">
+            <div class="toolbar-left">
+              <button class="toolbar-btn" id="btn-chat-upload" title="Attach document to this chat">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </button>
+              <input type="file" id="chat-file-input" class="hidden"
+                     accept=".pdf,.pptx,.txt,.md" />
+              <button class="toolbar-btn folder-picker" id="btn-folder-picker" title="Select source folder">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                </svg>
+                <span class="folder-picker-label" id="folder-picker-label">No folder</span>
+                <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <!-- Hidden native select driven by JS -->
+              <select class="hidden-select" id="folder-select">
+                <option value="">No folder</option>
+              </select>
+            </div>
+            <div class="toolbar-right">
+              <button class="toolbar-btn model-btn" id="btn-model" title="Model" disabled>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3" />
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                </svg>
+                <span id="model-label">mistral:7b</span>
+              </button>
+              <button class="btn-send" id="btn-send" title="Send">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- Folder Detail View (hidden until a folder is selected) -->
+    <!-- Folder Detail View -->
     <div class="folder-view hidden" id="folder-view">
       <div class="folder-view-header">
         <h2 id="folder-view-title">Folder</h2>
         <div class="folder-view-controls">
-          <button class="btn-small" id="btn-folder-upload">📄 Upload Document</button>
+          <button class="btn-small" id="btn-folder-upload">Upload Document</button>
           <input type="file" id="folder-file-input" class="hidden"
                  accept=".pdf,.pptx,.txt,.md" multiple />
           <button class="btn-small btn-danger" id="btn-delete-folder">Delete Folder</button>
@@ -95,6 +133,38 @@
       </div>
     </div>
   </main>
+
+  <!-- Context menu (three-dot) -->
+  <div class="context-menu hidden" id="context-menu">
+    <button class="ctx-item" data-action="rename">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+      </svg>
+      Rename
+    </button>
+    <button class="ctx-item" data-action="pin">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="17" x2="12" y2="22" />
+        <path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z" />
+      </svg>
+      <span id="ctx-pin-label">Pin</span>
+    </button>
+    <div class="ctx-divider"></div>
+    <button class="ctx-item ctx-danger" data-action="delete">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6" />
+        <path d="M19 6l-2 14H7L5 6" />
+        <path d="M10 11v6" />
+        <path d="M14 11v6" />
+        <path d="M9 6V4h6v2" />
+      </svg>
+      Delete
+    </button>
+  </div>
 
   <script src="/static/app.js"></script>
 </body>

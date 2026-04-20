@@ -21,6 +21,7 @@ class FolderInfo(BaseModel):
     id: str
     name: str
     document_count: int = 0
+    pinned: bool = False
 
 
 class DocumentInfo(BaseModel):
@@ -40,6 +41,7 @@ class ChatInfo(BaseModel):
     id: str
     title: str
     folder_id: str | None = None
+    pinned: bool = False
     message_count: int = 0
 
 
