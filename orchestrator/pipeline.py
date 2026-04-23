@@ -13,6 +13,11 @@ Scoping rules:
     - The retriever NEVER sees collections outside the specified scope,
       so there is zero cross-contamination between subjects.
 
+Model modes:
+    - "fast"     → mistral:7b      (quick answers)
+    - "thinking" → deepseek-r1:8b  (step-by-step reasoning)
+    - "math"     → phi4-mini       (proofs, equations, calculations)
+
 The cite-or-decline policy is enforced at two levels:
     1. PRE-LLM:  if no chunks pass the similarity threshold, decline
                   immediately without wasting an LLM call.
@@ -24,6 +29,7 @@ from __future__ import annotations
 
 import logging
 
+from config import MODEL_PRESETS, DEFAULT_MODE
 from retrieval.retriever import retrieve
 from retrieval.reranker import rerank
 from generation.llm import generate
@@ -37,6 +43,7 @@ def ask(
     query: str,
     folder_id: str | None = None,
     chat_id: str | None = None,
+    mode: str | None = None,
 ) -> CitedResponse:
     """
     Answer a question using the RAG pipeline, scoped to a specific
@@ -46,6 +53,7 @@ def ask(
         query: the user's question
         folder_id: source folder to search (the academic subject)
         chat_id: chat whose temporary documents should also be searched
+        mode: model mode — "fast", "thinking", or "math"
 
     Returns:
         A CitedResponse containing the answer (or a decline message),
@@ -59,7 +67,12 @@ def ask(
             declined=True,
         )
 
-    # --- Step 1: Resolve scope to collection names ---
+    # --- Step 1: Resolve model ---
+    mode = mode or DEFAULT_MODE
+    model_name = MODEL_PRESETS.get(mode, MODEL_PRESETS[DEFAULT_MODE])
+    logger.info("Using mode '%s' → model '%s'", mode, model_name)
+
+    # --- Step 2: Resolve scope to collection names ---
     from api.state import state
 
     collection_names = state.get_collection_names(folder_id, chat_id)
@@ -80,13 +93,13 @@ def ask(
         len(collection_names), collection_names,
     )
 
-    # --- Step 2: Retrieve (scoped) ---
+    # --- Step 3: Retrieve (scoped) ---
     chunks = retrieve(query, collection_names)
 
-    # --- Step 3: Rerank (no-op until Phase 2) ---
+    # --- Step 4: Rerank (no-op until Phase 2) ---
     chunks = rerank(query, chunks)
 
-    # --- Step 4: Relevance gate (pre-LLM) ---
+    # --- Step 5: Relevance gate (pre-LLM) ---
     if not chunks:
         logger.info("No relevant chunks found — declining to answer.")
         return CitedResponse(
@@ -98,15 +111,15 @@ def ask(
             declined=True,
         )
 
-    # --- Step 5: Build prompt and call LLM ---
+    # --- Step 6: Build prompt and call LLM ---
     user_prompt = build_user_prompt(query, chunks)
-    response_text = generate(SYSTEM_PROMPT, user_prompt)
+    response_text = generate(SYSTEM_PROMPT, user_prompt, model_name=model_name)
 
-    # --- Step 6: Parse citations (post-LLM gate) ---
+    # --- Step 7: Parse citations (post-LLM gate) ---
     result = parse_citations(response_text, chunks)
 
     logger.info(
-        "Pipeline complete — declined=%s, sources=%d, collections=%s",
-        result.declined, len(result.sources), collection_names,
+        "Pipeline complete — mode=%s, declined=%s, sources=%d",
+        mode, result.declined, len(result.sources),
     )
     return result

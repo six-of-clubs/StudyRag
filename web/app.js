@@ -5,7 +5,7 @@
 const API = "";
 
 // ---------------------------------------------------------------------------
-// SVG icon templates (no emojis)
+// SVG icon templates
 // ---------------------------------------------------------------------------
 
 const ICONS = {
@@ -15,6 +15,13 @@ const ICONS = {
   pin: `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24z"/></svg>`,
   file: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>`,
   trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
+};
+
+// Mode descriptions shown in the dropdown
+const MODE_INFO = {
+  fast:     { label: "Fast",     desc: "Quick answers" },
+  thinking: { label: "Thinking", desc: "Step-by-step reasoning" },
+  math:     { label: "Math",     desc: "Proofs & calculations" },
 };
 
 // ---------------------------------------------------------------------------
@@ -27,6 +34,7 @@ let activeChatId = null;
 let activeFolderId = null;
 let currentView = "empty";
 let pendingEmptyChat = null;
+let currentMode = "fast";
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -95,7 +103,6 @@ function renderChatList() {
     `;
 
     li.querySelector(".list-item-name").addEventListener("click", () => openChat(chat.id));
-
     const dotsBtn = li.querySelector(".list-item-dots");
     dotsBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -138,7 +145,6 @@ function renderFolderList() {
     `;
 
     li.querySelector(".list-item-name").addEventListener("click", () => openFolder(folder.id));
-
     const dotsBtn = li.querySelector(".list-item-dots");
     dotsBtn.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -150,7 +156,7 @@ function renderFolderList() {
 }
 
 // ---------------------------------------------------------------------------
-// Folder selector (hidden <select> + custom dropdown)
+// Folder selector
 // ---------------------------------------------------------------------------
 
 function renderFolderSelect() {
@@ -220,7 +226,6 @@ document.getElementById("btn-folder-picker").addEventListener("click", (e) => {
   });
 
   document.body.appendChild(dd);
-
   setTimeout(() => {
     const handler = (ev) => {
       if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener("click", handler); }
@@ -236,8 +241,56 @@ async function syncFolderToChat() {
 }
 
 // ---------------------------------------------------------------------------
+// Mode picker
+// ---------------------------------------------------------------------------
+
+function updateModeButton() {
+  const label = document.getElementById("mode-label");
+  const btn = document.getElementById("btn-mode-picker");
+  const info = MODE_INFO[currentMode] || MODE_INFO.fast;
+  label.textContent = info.label;
+  btn.setAttribute("data-mode", currentMode);
+}
+
+document.getElementById("btn-mode-picker").addEventListener("click", (e) => {
+  e.stopPropagation();
+  closeAllDropdowns();
+
+  const btn = e.currentTarget;
+  const rect = btn.getBoundingClientRect();
+
+  const dd = document.createElement("div");
+  dd.className = "mode-dropdown";
+  dd.id = "mode-dropdown-live";
+  dd.style.right = (window.innerWidth - rect.right) + "px";
+  dd.style.bottom = (window.innerHeight - rect.top + 4) + "px";
+
+  Object.entries(MODE_INFO).forEach(([modeId, info]) => {
+    const item = document.createElement("button");
+    item.className = "mode-dropdown-item" + (currentMode === modeId ? " active" : "");
+    item.innerHTML = `
+      <span>${info.label}</span>
+      <span class="mode-desc">${info.desc}</span>
+    `;
+    item.addEventListener("click", () => {
+      currentMode = modeId;
+      updateModeButton();
+      dd.remove();
+    });
+    dd.appendChild(item);
+  });
+
+  document.body.appendChild(dd);
+  setTimeout(() => {
+    const handler = (ev) => {
+      if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener("click", handler); }
+    };
+    document.addEventListener("click", handler);
+  }, 0);
+});
+
+// ---------------------------------------------------------------------------
 // Context menu (three-dot)
-// Receives the BUTTON ELEMENT directly so getBoundingClientRect is reliable.
 // ---------------------------------------------------------------------------
 
 let ctxTarget = null;
@@ -249,24 +302,13 @@ function showContextMenu(buttonEl, type, data) {
   const menu = document.getElementById("context-menu");
   const pinLabel = document.getElementById("ctx-pin-label");
   pinLabel.textContent = data.pinned ? "Unpin" : "Pin";
-
   menu.classList.remove("hidden");
 
-  // Position: appear right below the dots button, aligned to the left edge of sidebar item
   const rect = buttonEl.getBoundingClientRect();
-
-  // Place below the button, right-aligned to the button
   let top = rect.bottom + 4;
-  let left = rect.right - 150;  // menu is ~150px wide, align right edge to button
-
-  // If it would go below viewport, place above instead
-  if (top + 120 > window.innerHeight) {
-    top = rect.top - 120;
-  }
-
-  // Don't go off-screen left
+  let left = rect.right - 150;
+  if (top + 120 > window.innerHeight) top = rect.top - 120;
   if (left < 4) left = 4;
-
   menu.style.top = top + "px";
   menu.style.left = left + "px";
 
@@ -287,7 +329,6 @@ document.getElementById("context-menu").addEventListener("click", async (e) => {
 
   const { type, data } = ctxTarget;
   const action = btn.dataset.action;
-
   document.getElementById("context-menu").classList.add("hidden");
 
   if (action === "rename") {
@@ -335,8 +376,10 @@ document.getElementById("context-menu").addEventListener("click", async (e) => {
 
 function closeAllDropdowns() {
   document.getElementById("context-menu").classList.add("hidden");
-  const dd = document.getElementById("folder-dropdown-live");
-  if (dd) dd.remove();
+  const dd1 = document.getElementById("folder-dropdown-live");
+  if (dd1) dd1.remove();
+  const dd2 = document.getElementById("mode-dropdown-live");
+  if (dd2) dd2.remove();
 }
 
 document.addEventListener("keydown", (e) => {
@@ -371,7 +414,6 @@ async function openChat(chatId) {
   renderFolderList();
 
   const chat = await api("GET", `/api/chats/${chatId}`);
-  document.getElementById("chat-title").textContent = chat.title;
 
   document.getElementById("folder-select").value = chat.folder_id || "";
   updateFolderPickerLabel();
@@ -382,6 +424,7 @@ async function openChat(chatId) {
     document.getElementById("chat-title").textContent = "How can I help you today?";
   } else {
     chatView.classList.remove("empty-chat");
+    document.getElementById("chat-title").textContent = chat.title;
   }
 
   renderMessages(chat.messages);
@@ -469,7 +512,6 @@ document.getElementById("btn-new-chat").addEventListener("click", async () => {
     }
     pendingEmptyChat = null;
   }
-
   const chat = await api("POST", "/api/chats", { title: "New Chat" });
   pendingEmptyChat = chat.id;
   await loadChats();
@@ -604,6 +646,7 @@ async function sendQuery() {
       question,
       chat_id: activeChatId,
       folder_id: folderId,
+      mode: currentMode,
     });
 
     loading.remove();
@@ -659,7 +702,6 @@ async function extractAndRename(chatId, question) {
 function showModal(title, placeholder, onConfirm) {
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
-
   const isRename = placeholder !== "Folder name";
 
   overlay.innerHTML = `
@@ -676,12 +718,10 @@ function showModal(title, placeholder, onConfirm) {
   const inputEl = overlay.querySelector("input");
   const cancelBtn = overlay.querySelector(".btn-modal-cancel");
   const confirmBtn = overlay.querySelector(".btn-modal-confirm");
-
   const close = () => overlay.remove();
 
   cancelBtn.addEventListener("click", close);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
-
   const submit = () => { onConfirm(inputEl.value); close(); };
   confirmBtn.addEventListener("click", submit);
   inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
@@ -707,4 +747,5 @@ function esc(str) {
 
 (async () => {
   await Promise.all([loadChats(), loadFolders()]);
+  updateModeButton();
 })();

@@ -67,6 +67,7 @@ class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1)
     chat_id: str
     folder_id: str | None = None
+    mode: str = Field(default="fast", pattern="^(fast|thinking|math)$")
 
 
 class QueryResponse(BaseModel):

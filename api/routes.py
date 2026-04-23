@@ -2,8 +2,9 @@
 API routes for StudyRAG.
 
 Endpoints:
-    Folders:  CRUD + document upload
-    Chats:    CRUD + query + temp document upload
+    Folders:  CRUD + document upload + rename + pin + document delete
+    Chats:    CRUD + query + temp document upload + rename + pin
+    Models:   list available modes
     Status:   health check
 """
 
@@ -22,6 +23,7 @@ from api.models import (
     QueryRequest, QueryResponse,
 )
 from api.state import state
+from config import MODEL_PRESETS, DEFAULT_MODE
 from orchestrator.pipeline import ask as pipeline_ask
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,21 @@ def status():
         "status": "ok",
         "folders": len(folders),
         "chats": len(chats),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
+@router.get("/api/models")
+def list_models():
+    """Return the available model modes and which Ollama model each maps to."""
+    return {
+        "modes": [
+            {"id": mode, "model": model_name, "default": mode == DEFAULT_MODE}
+            for mode, model_name in MODEL_PRESETS.items()
+        ]
     }
 
 
@@ -98,7 +115,6 @@ def delete_folder_document(folder_id: str, filename: str):
         raise HTTPException(404, "Folder not found")
     if filename not in folder.documents:
         raise HTTPException(404, "Document not found")
-    # Remove from folder tracking (chunks remain but won't match after re-ingest)
     del folder.documents[filename]
     state._save()
     return {"deleted": True}
@@ -217,29 +233,6 @@ def toggle_pin_chat(chat_id: str):
     return {"pinned": pinned}
 
 
-@router.post("/api/extract-topic")
-def extract_topic(question: str):
-    """Use the LLM to extract a short topic title from a question."""
-    from generation.llm import generate
-    try:
-        title = generate(
-            system_prompt=(
-                "Extract the academic topic from the user's question. "
-                "Reply with ONLY a short title (2-5 words). No quotes, no punctuation, no explanation. "
-                "Examples: 'Matrix Eigenvalues', 'Gradient Descent', 'Fourier Transform'."
-            ),
-            user_prompt=question,
-        )
-        title = title.strip().strip('"').strip("'")[:60]
-        if not title:
-            title = question[:40]
-        return {"title": title}
-    except Exception:
-        # Fallback: first few words
-        words = question.split()[:5]
-        return {"title": " ".join(words)[:40]}
-
-
 @router.post("/api/chats/{chat_id}/upload", response_model=DocumentInfo)
 async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
     chat = state.get_chat(chat_id)
@@ -262,6 +255,32 @@ async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
 
 
 # ---------------------------------------------------------------------------
+# Topic extraction
+# ---------------------------------------------------------------------------
+
+@router.post("/api/extract-topic")
+def extract_topic(question: str):
+    """Use the LLM to extract a short topic title from a question."""
+    from generation.llm import generate
+    try:
+        title = generate(
+            system_prompt=(
+                "Extract the academic topic from the user's question. "
+                "Reply with ONLY a short title (2-5 words). No quotes, no punctuation, no explanation. "
+                "Examples: 'Matrix Eigenvalues', 'Gradient Descent', 'Fourier Transform'."
+            ),
+            user_prompt=question,
+        )
+        title = title.strip().strip('"').strip("'")[:60]
+        if not title:
+            title = question[:40]
+        return {"title": title}
+    except Exception:
+        words = question.split()[:5]
+        return {"title": " ".join(words)[:40]}
+
+
+# ---------------------------------------------------------------------------
 # Query
 # ---------------------------------------------------------------------------
 
@@ -278,7 +297,12 @@ def query(body: QueryRequest):
 
     # Run the full pipeline through the orchestrator
     try:
-        result = pipeline_ask(body.question, folder_id=folder_id, chat_id=body.chat_id)
+        result = pipeline_ask(
+            body.question,
+            folder_id=folder_id,
+            chat_id=body.chat_id,
+            mode=body.mode,
+        )
     except ConnectionError as e:
         raise HTTPException(503, str(e))
 

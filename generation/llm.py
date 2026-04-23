@@ -17,13 +17,14 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 
-def generate(system_prompt: str, user_prompt: str) -> str:
+def generate(system_prompt: str, user_prompt: str, model_name: str | None = None) -> str:
     """
     Send a chat completion request to Ollama.
 
     Args:
         system_prompt: instructions for the model (citation policy etc.)
         user_prompt: the context + question
+        model_name: Ollama model to use. Defaults to settings.ollama_model.
 
     Returns:
         The model's response text.
@@ -31,6 +32,7 @@ def generate(system_prompt: str, user_prompt: str) -> str:
     Raises:
         ConnectionError: if Ollama is unreachable.
     """
+    model = model_name or settings.ollama_model
     client = ollama.Client(host=settings.ollama_base_url)
 
     messages = [
@@ -38,12 +40,12 @@ def generate(system_prompt: str, user_prompt: str) -> str:
         {"role": "user", "content": user_prompt},
     ]
 
-    logger.info("Sending query to '%s' ...", settings.ollama_model)
+    logger.info("Sending query to '%s' ...", model)
     start = time.time()
 
     try:
         response = client.chat(
-            model=settings.ollama_model,
+            model=model,
             messages=messages,
         )
     except Exception as e:
@@ -56,5 +58,5 @@ def generate(system_prompt: str, user_prompt: str) -> str:
     elapsed = time.time() - start
     reply = response["message"]["content"]
 
-    logger.info("Got response in %.1fs (%d chars)", elapsed, len(reply))
+    logger.info("Got response from '%s' in %.1fs (%d chars)", model, elapsed, len(reply))
     return reply

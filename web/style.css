@@ -1,10 +1,9 @@
 /* ==========================================================================
-   StudyRAG — Dark Academic Theme
+   StudyRAG — Dark Academic Theme (Complete)
    ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=DM+Sans:wght@400;500;600&display=swap');
 
-/* --- Tokens --- */
 :root {
   --bg-base:      #0f1117;
   --bg-surface:   #181a20;
@@ -37,12 +36,7 @@
   --transition:    0.15s ease;
 }
 
-/* --- Reset --- */
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 html, body {
   height: 100%;
@@ -54,17 +48,13 @@ html, body {
   overflow: hidden;
 }
 
-body {
-  display: flex;
-}
+body { display: flex; }
 
-/* --- Scrollbar --- */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
 
-/* --- Utility --- */
 .hidden { display: none !important; }
 .muted { color: var(--text-muted); font-size: 13px; }
 
@@ -96,11 +86,7 @@ body {
   color: var(--text-primary);
 }
 
-.logo-accent {
-  color: var(--accent);
-}
-
-/* --- Sidebar Sections --- */
+.logo-accent { color: var(--accent); }
 
 .sidebar-section {
   flex: 1;
@@ -110,9 +96,7 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
-.sidebar-section:last-child {
-  border-bottom: none;
-}
+.sidebar-section:last-child { border-bottom: none; }
 
 .section-header {
   display: flex;
@@ -150,7 +134,7 @@ body {
   border-color: var(--accent-dim);
 }
 
-/* --- Chat & Folder Lists --- */
+/* --- Lists --- */
 
 .chat-list, .folder-list {
   list-style: none;
@@ -195,11 +179,7 @@ body {
   align-items: center;
 }
 
-.list-item-icon svg {
-  width: 15px;
-  height: 15px;
-}
-
+.list-item-icon svg { width: 15px; height: 15px; }
 .active .list-item-icon { color: var(--accent); }
 
 .pin-indicator {
@@ -209,14 +189,7 @@ body {
   align-items: center;
 }
 
-.pin-indicator svg {
-  width: 11px;
-  height: 11px;
-}
-
-/* --- Three-dot button ---
-   Always visible but very subtle, highlights on hover.
-   Background must be fully transparent to match the list row. */
+.pin-indicator svg { width: 11px; height: 11px; }
 
 .list-item-dots {
   background: transparent;
@@ -248,7 +221,7 @@ body {
 }
 
 /* ==========================================================================
-   CONTEXT MENU (three-dot dropdown)
+   CONTEXT MENU
    ========================================================================== */
 
 .context-menu {
@@ -282,25 +255,10 @@ body {
   outline: none;
 }
 
-.ctx-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-}
-
-.ctx-item.ctx-danger {
-  color: var(--text-muted);
-}
-
-.ctx-item.ctx-danger:hover {
-  background: rgba(217, 83, 79, 0.1);
-  color: var(--red);
-}
-
-.ctx-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 4px 6px;
-}
+.ctx-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.ctx-item.ctx-danger { color: var(--text-muted); }
+.ctx-item.ctx-danger:hover { background: rgba(217, 83, 79, 0.1); color: var(--red); }
+.ctx-divider { height: 1px; background: var(--border); margin: 4px 6px; }
 
 /* ==========================================================================
    MAIN AREA
@@ -314,8 +272,6 @@ body {
   overflow: hidden;
 }
 
-/* --- Empty State --- */
-
 .empty-state {
   flex: 1;
   display: flex;
@@ -327,10 +283,7 @@ body {
   padding: 40px;
 }
 
-.empty-icon {
-  color: var(--text-muted);
-  margin-bottom: 8px;
-}
+.empty-icon { color: var(--text-muted); margin-bottom: 8px; }
 
 .empty-state h2 {
   font-family: var(--font-display);
@@ -372,8 +325,6 @@ body {
   text-overflow: ellipsis;
 }
 
-/* --- Messages area --- */
-
 .messages {
   flex: 1;
   overflow-y: auto;
@@ -383,25 +334,11 @@ body {
   gap: 20px;
 }
 
-/* When chat is empty (new), center the input vertically */
-.chat-view.empty-chat .messages {
-  display: none;
-}
-
-.chat-view.empty-chat {
-  justify-content: center;
-  align-items: center;
-}
-
-.chat-view.empty-chat .input-wrapper {
-  padding-bottom: 20vh;
-}
-
-.chat-view.empty-chat .chat-header {
-  border-bottom-color: transparent;
-  background: transparent;
-}
-
+/* Empty chat: center input */
+.chat-view.empty-chat .messages { display: none; }
+.chat-view.empty-chat { justify-content: center; align-items: center; }
+.chat-view.empty-chat .input-wrapper { padding-bottom: 20vh; }
+.chat-view.empty-chat .chat-header { border-bottom-color: transparent; background: transparent; }
 .chat-view.empty-chat .chat-title {
   text-align: center;
   font-size: 22px;
@@ -443,9 +380,7 @@ body {
   padding: 12px 16px;
 }
 
-.message.assistant .message-content {
-  padding: 4px 0;
-}
+.message.assistant .message-content { padding: 4px 0; }
 
 .message.declined .message-content {
   color: var(--text-secondary);
@@ -454,14 +389,7 @@ body {
   padding-left: 14px;
 }
 
-/* --- Citations in messages --- */
-
-.message-sources {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 4px;
-}
+.message-sources { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 
 .source-tag {
   display: inline-flex;
@@ -476,11 +404,7 @@ body {
   border-radius: 3px;
 }
 
-.source-tag .sim {
-  color: var(--text-muted);
-}
-
-/* --- Temp upload notice --- */
+.source-tag .sim { color: var(--text-muted); }
 
 .temp-notice {
   max-width: 720px;
@@ -495,8 +419,6 @@ body {
   text-align: center;
 }
 
-/* --- Loading --- */
-
 .message.loading .message-content::after {
   content: '';
   display: inline-block;
@@ -509,14 +431,10 @@ body {
   border-radius: 1px;
 }
 
-@keyframes blink {
-  0% { opacity: 1; }
-  50% { opacity: 0; }
-}
+@keyframes blink { 0% { opacity: 1; } 50% { opacity: 0; } }
 
 /* ==========================================================================
-   INPUT AREA — Claude-style layout
-   The wrapper takes full width, the box is centered with max-width.
+   INPUT AREA
    ========================================================================== */
 
 .input-wrapper {
@@ -536,9 +454,7 @@ body {
   transition: border-color var(--transition);
 }
 
-.input-box:focus-within {
-  border-color: var(--border-light);
-}
+.input-box:focus-within { border-color: var(--border-light); }
 
 #query-input {
   width: 100%;
@@ -554,11 +470,7 @@ body {
   line-height: 1.5;
 }
 
-#query-input::placeholder {
-  color: var(--text-muted);
-}
-
-/* --- Toolbar row under textarea --- */
+#query-input::placeholder { color: var(--text-muted); }
 
 .input-toolbar {
   display: flex;
@@ -573,7 +485,6 @@ body {
   gap: 2px;
 }
 
-/* Plus button (attach) */
 .toolbar-btn {
   background: transparent;
   border: none;
@@ -598,7 +509,6 @@ body {
   color: var(--text-secondary);
 }
 
-/* Folder picker button */
 .folder-picker {
   padding: 5px 8px;
   border-radius: 8px;
@@ -612,19 +522,14 @@ body {
   max-width: 120px;
 }
 
-.folder-picker .chevron {
-  flex-shrink: 0;
-  opacity: 0.5;
-}
+.folder-picker .chevron { flex-shrink: 0; opacity: 0.5; }
 
 .folder-picker.has-folder {
   color: var(--accent);
   background: rgba(201, 165, 90, 0.08);
 }
 
-.folder-picker.has-folder:hover {
-  background: rgba(201, 165, 90, 0.14);
-}
+.folder-picker.has-folder:hover { background: rgba(201, 165, 90, 0.14); }
 
 .hidden-select {
   position: absolute;
@@ -635,21 +540,6 @@ body {
   overflow: hidden;
 }
 
-/* Model indicator */
-.model-btn {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-muted);
-  cursor: default;
-  padding: 5px 8px;
-}
-
-.model-btn:hover {
-  background: transparent;
-  color: var(--text-muted);
-}
-
-/* Send button — rounded, accent-colored like Claude's */
 .btn-send {
   background: var(--accent);
   border: none;
@@ -666,217 +556,72 @@ body {
   margin-left: 2px;
 }
 
-.btn-send:hover {
-  background: var(--accent-dim);
-}
-
-.btn-send:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
+.btn-send:hover { background: var(--accent-dim); }
+.btn-send:disabled { opacity: 0.3; cursor: not-allowed; }
 
 /* ==========================================================================
-   FOLDER VIEW
+   MODE PICKER
    ========================================================================== */
 
-.folder-view {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+.mode-picker {
+  padding: 5px 8px;
+  border-radius: 8px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-.folder-view-header {
-  padding: 14px 24px;
-  border-bottom: 1px solid var(--border);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+.mode-label { text-transform: capitalize; }
+.mode-picker .chevron { flex-shrink: 0; opacity: 0.5; }
+
+.mode-picker[data-mode="fast"]     { color: var(--text-secondary); }
+.mode-picker[data-mode="thinking"] { color: #7eb8da; }
+.mode-picker[data-mode="math"]     { color: #b695d9; }
+
+.mode-dropdown {
+  position: fixed;
+  z-index: 500;
   background: var(--bg-surface);
-  flex-shrink: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 4px;
+  min-width: 190px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 
-.folder-view-header h2 {
-  font-family: var(--font-display);
-  font-size: 18px;
-  font-weight: 600;
-}
-
-.folder-view-controls {
-  display: flex;
-  gap: 8px;
-}
-
-.folder-documents {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-}
-
-.doc-item {
+.mode-dropdown-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 14px;
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  margin-bottom: 8px;
-}
-
-.doc-item-name {
-  font-size: 13px;
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.doc-item-name svg {
-  color: var(--text-muted);
-  flex-shrink: 0;
-}
-
-.doc-item-delete {
+  width: 100%;
+  padding: 8px 12px;
   background: transparent;
   border: none;
-  color: var(--text-muted);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 13px;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  opacity: 0;
+  border-radius: 5px;
   transition: all var(--transition);
+  text-align: left;
   -webkit-appearance: none;
   appearance: none;
   outline: none;
 }
 
-.doc-item:hover .doc-item-delete {
-  opacity: 1;
-}
+.mode-dropdown-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.mode-dropdown-item.active { color: var(--accent); }
 
-.doc-item-delete:hover {
-  color: var(--red);
-  background: rgba(217, 83, 79, 0.1);
-}
-
-/* --- Small buttons --- */
-
-.btn-small {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  font-family: var(--font-body);
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all var(--transition);
-}
-
-.btn-small:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
-  border-color: var(--border-light);
-}
-
-.btn-danger {
-  color: var(--red);
-}
-
-.btn-danger:hover {
-  background: rgba(217, 83, 79, 0.1);
-  border-color: var(--red-dim);
-  color: var(--red);
+.mode-dropdown-item .mode-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
 }
 
 /* ==========================================================================
-   MODAL
+   FOLDER DROPDOWN
    ========================================================================== */
-
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 600;
-}
-
-.modal {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 24px;
-  width: 340px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.modal h3 {
-  font-family: var(--font-display);
-  font-size: 17px;
-}
-
-.modal input {
-  background: var(--bg-raised);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 14px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  outline: none;
-  transition: border-color var(--transition);
-}
-
-.modal input:focus {
-  border-color: var(--accent-dim);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.btn-modal {
-  font-family: var(--font-body);
-  font-size: 13px;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border);
-  cursor: pointer;
-  transition: all var(--transition);
-}
-
-.btn-modal-cancel {
-  background: var(--bg-raised);
-  color: var(--text-secondary);
-}
-
-.btn-modal-cancel:hover {
-  background: var(--bg-hover);
-}
-
-.btn-modal-confirm {
-  background: var(--accent);
-  color: var(--bg-base);
-  border-color: var(--accent);
-  font-weight: 600;
-}
-
-.btn-modal-confirm:hover {
-  background: var(--accent-dim);
-}
-
-/* --- Folder dropdown in toolbar --- */
 
 .folder-dropdown {
   position: fixed;
@@ -911,17 +656,161 @@ body {
   outline: none;
 }
 
-.folder-dropdown-item:hover {
-  background: var(--bg-hover);
-  color: var(--text-primary);
+.folder-dropdown-item:hover { background: var(--bg-hover); color: var(--text-primary); }
+.folder-dropdown-item.active { color: var(--accent); }
+.folder-dropdown-item svg { flex-shrink: 0; width: 14px; height: 14px; }
+
+/* ==========================================================================
+   FOLDER VIEW
+   ========================================================================== */
+
+.folder-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.folder-dropdown-item.active {
-  color: var(--accent);
-}
-
-.folder-dropdown-item svg {
+.folder-view-header {
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--bg-surface);
   flex-shrink: 0;
-  width: 14px;
-  height: 14px;
 }
+
+.folder-view-header h2 {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.folder-view-controls { display: flex; gap: 8px; }
+
+.folder-documents { flex: 1; overflow-y: auto; padding: 24px; }
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: 8px;
+}
+
+.doc-item-name {
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.doc-item-name svg { color: var(--text-muted); flex-shrink: 0; }
+
+.doc-item-delete {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  opacity: 0;
+  transition: all var(--transition);
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+}
+
+.doc-item:hover .doc-item-delete { opacity: 1; }
+.doc-item-delete:hover { color: var(--red); background: rgba(217, 83, 79, 0.1); }
+
+.btn-small {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition);
+}
+
+.btn-small:hover { background: var(--bg-hover); color: var(--text-primary); border-color: var(--border-light); }
+
+.btn-danger { color: var(--red); }
+.btn-danger:hover { background: rgba(217, 83, 79, 0.1); border-color: var(--red-dim); color: var(--red); }
+
+/* ==========================================================================
+   MODAL
+   ========================================================================== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 600;
+}
+
+.modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.modal h3 { font-family: var(--font-display); font-size: 17px; }
+
+.modal input {
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color var(--transition);
+}
+
+.modal input:focus { border-color: var(--accent-dim); }
+
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.btn-modal {
+  font-family: var(--font-body);
+  font-size: 13px;
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-modal-cancel { background: var(--bg-raised); color: var(--text-secondary); }
+.btn-modal-cancel:hover { background: var(--bg-hover); }
+
+.btn-modal-confirm {
+  background: var(--accent);
+  color: var(--bg-base);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+.btn-modal-confirm:hover { background: var(--accent-dim); }

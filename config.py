@@ -1,5 +1,9 @@
 """
-Reading from .env file and creating a single ''settings'' object that every other module imports.  
+Centralised configuration for StudyRAG.
+
+Reads from .env file (or real environment variables) and exposes a single
+`settings` object that every other module imports.  Values are validated at
+startup so mis-configuration fails fast.
 """
 
 import os
@@ -23,6 +27,20 @@ def _env_int(key: str, default: int) -> int:
 
 def _env_float(key: str, default: float) -> float:
     return float(os.getenv(key, str(default)))
+
+
+# ---------------------------------------------------------------------------
+# Model presets — each mode maps to an Ollama model name.
+# Override in .env if you want different models.
+# ---------------------------------------------------------------------------
+
+MODEL_PRESETS = {
+    "fast": _env("MODEL_FAST", "mistral:7b"),
+    "thinking": _env("MODEL_THINKING", "deepseek-r1:8b"),
+    "math": _env("MODEL_MATH", "phi4-mini"),
+}
+
+DEFAULT_MODE = "fast"
 
 
 @dataclass(frozen=True)

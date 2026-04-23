@@ -5,6 +5,11 @@ Takes a list of Document objects from the loader and splits them into
 smaller, overlapping chunks suitable for embedding. Each chunk inherits
 its parent's metadata and gets an additional `chunk_index`.
 
+METADATA INJECTION: Each chunk's text is prefixed with its source file
+and page number so that the embedding model can match queries like
+"explain slide 12 in introduction_organization". Without this, metadata
+is invisible to vector search.
+
 Strategy:
     Fixed-size character windows with overlap. Splits prefer sentence
     boundaries when possible so chunks don't cut mid-sentence.
@@ -27,18 +32,40 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 @dataclass
 class Chunk:
-    """A text fragment ready for embedding"""
+    """A text fragment ready for embedding, with full provenance."""
 
     text: str
     metadata: dict = field(default_factory=dict)
     # metadata inherits from Document + adds: chunk_index
 
 
+def _build_metadata_prefix(doc: Document) -> str:
+    """
+    Build a human-readable prefix from document metadata.
+
+    This gets prepended to every chunk so the embedding model can
+    match queries that reference filenames, slide/page numbers, or
+    file types.
+
+    Examples:
+        "[Introduction_Organization.pdf | Slide 12]"
+        "[calculus_notes.txt | Page 1]"
+    """
+    source = doc.metadata.get("source_file", "unknown")
+    page = doc.metadata.get("page_number", "?")
+    file_type = doc.metadata.get("file_type", "")
+
+    # Use "Slide" for presentations, "Page" for everything else
+    page_label = "Slide" if file_type == "pptx" else "Page"
+
+    return f"[{source} | {page_label} {page}]"
+
+
 def _find_split_point(text: str, target: int) -> int:
     """
     Find the best position to split `text` at approximately `target` chars.
 
-    Splitting at a sentence boundary, falling back to whitespace!
+    Prefers splitting at a sentence boundary. Falls back to whitespace.
     Falls back to the hard target if neither is found.
     """
     if target >= len(text):
@@ -55,12 +82,12 @@ def _find_split_point(text: str, target: int) -> int:
     if best > 0:
         return best
 
-    # Fall back (if text has zero full sentence before target): last whitespace before target !!
+    # Fall back: last whitespace before target
     space = text.rfind(" ", 0, target)
     if space > 0:
-        return space + 1  # keeping the space on the left side
+        return space + 1
 
-    return target # plan C: hard fall on target (no whitespace too)
+    return target
 
 
 def chunk_document(doc: Document) -> list[Chunk]:
@@ -68,11 +95,13 @@ def chunk_document(doc: Document) -> list[Chunk]:
     Split a single Document into overlapping Chunks.
 
     Uses `settings.chunk_size` and `settings.chunk_overlap` from config.
+    Each chunk is prefixed with metadata (filename + page number).
     """
     text = doc.text.strip()
     if not text:
         return []
 
+    prefix = _build_metadata_prefix(doc)
     size = settings.chunk_size
     overlap = settings.chunk_overlap
     chunks = []
@@ -80,17 +109,18 @@ def chunk_document(doc: Document) -> list[Chunk]:
     index = 0
 
     while start < len(text):
-        # Determine end of this chunk
         end = min(start + size, len(text))
 
-        # If we're not at the end (text remains), try to split at a sentence boundary
         if end < len(text):
             end = _find_split_point(text, end)
 
         chunk_text = text[start:end].strip()
         if chunk_text:
+            # Prepend metadata so it's part of the embedded text
+            enriched_text = f"{prefix} {chunk_text}"
+
             chunks.append(Chunk(
-                text=chunk_text,
+                text=enriched_text,
                 metadata={
                     **doc.metadata,
                     "chunk_index": index,
@@ -98,8 +128,7 @@ def chunk_document(doc: Document) -> list[Chunk]:
             ))
             index += 1
 
-        # Advance: move forward by (actual chunk length - overlap)
-        step = max(end - start - overlap, 1)  # we always move at least 1 char
+        step = max(end - start - overlap, 1)
         start += step
 
     logger.debug(
