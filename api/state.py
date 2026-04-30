@@ -1,5 +1,5 @@
 """
-State manager for StudyRAG.
+State manager:
 
 Manages folders, chats, and the mapping between them and ChromaDB
 collections. Each source folder gets its own collection. Each chat

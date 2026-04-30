@@ -1,0 +1,158 @@
+<svg width="680" viewBox="0 0 680 620" xmlns="http://www.w3.org/2000/svg" role="img">
+  <title>StudyRAG system workflow</title>
+  <desc>Two-phase pipeline: documents are ingested into per-folder vector collections, then queries are embedded, retrieved, reranked, and answered by a local LLM with citations.</desc>
+
+  <style>
+    @media (prefers-color-scheme: light) {
+      .bg-ingest { fill: #EAF3DE; stroke: #97C459; }
+      .bg-query  { fill: #E6F1FB; stroke: #85B7EB; }
+      .box-step  { fill: #fff; stroke: #B4B2A9; }
+      .box-green { fill: #C0DD97; stroke: #639922; }
+      .box-blue  { fill: #B5D4F4; stroke: #185FA5; }
+      .box-amber { fill: #FAC775; stroke: #854F0B; }
+      .box-red   { fill: #F7C1C1; stroke: #A32D2D; }
+      .box-purple{ fill: #CECBF6; stroke: #534AB7; }
+      .box-teal  { fill: #9FE1CB; stroke: #0F6E56; }
+      .t-title   { fill: #2C2C2A; font-weight: 500; }
+      .t-sub     { fill: #5F5E5A; }
+      .t-section { fill: #3B6D11; font-weight: 500; }
+      .t-section-q { fill: #0C447C; font-weight: 500; }
+      .arr       { stroke: #888780; }
+    }
+    @media (prefers-color-scheme: dark) {
+      .bg-ingest { fill: #1a2810; stroke: #5DCa45; }
+      .bg-query  { fill: #0e1f30; stroke: #5B9FD4; }
+      .box-step  { fill: #2C2C2A; stroke: #5F5E5A; }
+      .box-green { fill: #27500A; stroke: #97C459; }
+      .box-blue  { fill: #0C447C; stroke: #85B7EB; }
+      .box-amber { fill: #633806; stroke: #FAC775; }
+      .box-red   { fill: #501313; stroke: #F09595; }
+      .box-purple{ fill: #26215C; stroke: #AFA9EC; }
+      .box-teal  { fill: #085041; stroke: #5DCAA5; }
+      .t-title   { fill: #e4e4e0; font-weight: 500; }
+      .t-sub     { fill: #9c9a92; }
+      .t-section { fill: #C0DD97; font-weight: 500; }
+      .t-section-q { fill: #B5D4F4; font-weight: 500; }
+      .arr       { stroke: #9c9a92; }
+    }
+    text { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; }
+    .t-title { font-size: 13px; }
+    .t-sub   { font-size: 11px; }
+    .t-section { font-size: 14px; }
+    .t-section-q { font-size: 14px; }
+  </style>
+
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker>
+  </defs>
+
+  <!-- ===== INGESTION PHASE ===== -->
+  <rect class="bg-ingest" x="30" y="20" width="620" height="170" rx="16" stroke-width="0.5" fill-opacity="0.35"/>
+  <text class="t-section" x="50" y="46">Ingestion</text>
+  <text class="t-sub" x="130" y="46">once per document</text>
+
+  <!-- Row of boxes -->
+  <rect class="box-step" x="50"  y="65" width="110" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="105" y="83" text-anchor="middle" dominant-baseline="central">PDF / PPTX / TXT</text>
+
+  <line class="arr" x1="160" y1="87" x2="178" y2="87" stroke-width="1" marker-end="url(#ah)"/>
+
+  <rect class="box-step" x="182" y="65" width="110" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="237" y="79" text-anchor="middle" dominant-baseline="central">Extract text</text>
+  <text class="t-sub"   x="237" y="95" text-anchor="middle" dominant-baseline="central">per page / slide</text>
+
+  <line class="arr" x1="292" y1="87" x2="310" y2="87" stroke-width="1" marker-end="url(#ah)"/>
+
+  <rect class="box-green" x="314" y="65" width="130" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="379" y="79" text-anchor="middle" dominant-baseline="central">Chunk + metadata</text>
+  <text class="t-sub"   x="379" y="95" text-anchor="middle" dominant-baseline="central">[file | Page N] text</text>
+
+  <line class="arr" x1="444" y1="87" x2="462" y2="87" stroke-width="1" marker-end="url(#ah)"/>
+
+  <rect class="box-step" x="466" y="65" width="100" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="516" y="79" text-anchor="middle" dominant-baseline="central">Embed</text>
+  <text class="t-sub"   x="516" y="95" text-anchor="middle" dominant-baseline="central">MiniLM-L6-v2</text>
+
+  <line class="arr" x1="516" y1="109" x2="516" y2="134" stroke-width="1" marker-end="url(#ah)"/>
+
+  <rect class="box-teal" x="430" y="138" width="172" height="40" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="516" y="158" text-anchor="middle" dominant-baseline="central">ChromaDB (per folder)</text>
+
+  <!-- ===== QUERY PHASE ===== -->
+  <rect class="bg-query" x="30" y="220" width="620" height="380" rx="16" stroke-width="0.5" fill-opacity="0.35"/>
+  <text class="t-section-q" x="50" y="246">Query pipeline</text>
+  <text class="t-sub" x="175" y="246">every question</text>
+
+  <!-- Row 1: Question → Embed → Search -->
+  <rect class="box-step" x="50" y="265" width="130" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="115" y="283" text-anchor="middle" dominant-baseline="central">Student question</text>
+  <text class="t-sub"   x="115" y="299" text-anchor="middle" dominant-baseline="central">+ subject context</text>
+
+  <line class="arr" x1="180" y1="287" x2="198" y2="287" stroke-width="1" marker-end="url(#ah)"/>
+
+  <rect class="box-step" x="202" y="265" width="100" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="252" y="283" text-anchor="middle" dominant-baseline="central">Embed query</text>
+  <text class="t-sub"   x="252" y="299" text-anchor="middle" dominant-baseline="central">same model</text>
+
+  <line class="arr" x1="302" y1="287" x2="320" y2="287" stroke-width="1" marker-end="url(#ah)"/>
+
+  <rect class="box-blue" x="324" y="265" width="130" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="389" y="283" text-anchor="middle" dominant-baseline="central">Vector search</text>
+  <text class="t-sub"   x="389" y="299" text-anchor="middle" dominant-baseline="central">selected folder only</text>
+
+  <line class="arr" x1="454" y1="287" x2="472" y2="287" stroke-width="1" marker-end="url(#ah)"/>
+
+  <rect class="box-purple" x="476" y="265" width="130" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="541" y="283" text-anchor="middle" dominant-baseline="central">Reranker</text>
+  <text class="t-sub"   x="541" y="299" text-anchor="middle" dominant-baseline="central">cross-encoder</text>
+
+  <!-- Arrow down from reranker -->
+  <line class="arr" x1="541" y1="309" x2="541" y2="340" stroke-width="1" marker-end="url(#ah)"/>
+
+  <!-- Row 2: Relevance gate -->
+  <rect class="box-amber" x="466" y="344" width="150" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="541" y="362" text-anchor="middle" dominant-baseline="central">Relevant chunks?</text>
+  <text class="t-sub"   x="541" y="378" text-anchor="middle" dominant-baseline="central">threshold gate</text>
+
+  <!-- No branch -->
+  <rect class="box-red" x="260" y="344" width="140" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="330" y="370" text-anchor="middle" dominant-baseline="central">Decline to answer</text>
+
+  <line class="arr" x1="466" y1="366" x2="402" y2="366" stroke-width="1" marker-end="url(#ah)"/>
+  <text class="t-sub" x="436" y="358">no</text>
+
+  <!-- Yes branch down -->
+  <line class="arr" x1="541" y1="388" x2="541" y2="420" stroke-width="1" marker-end="url(#ah)"/>
+  <text class="t-sub" x="553" y="408">yes</text>
+
+  <!-- Row 3: LLM -->
+  <rect class="box-green" x="416" y="424" width="200" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="516" y="442" text-anchor="middle" dominant-baseline="central">LLM (Ollama, local)</text>
+  <text class="t-sub"   x="516" y="458" text-anchor="middle" dominant-baseline="central">fast / thinking / math</text>
+
+  <!-- Arrow down -->
+  <line class="arr" x1="516" y1="468" x2="516" y2="496" stroke-width="1" marker-end="url(#ah)"/>
+
+  <!-- Row 4: Citation check -->
+  <rect class="box-amber" x="441" y="500" width="150" height="44" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="516" y="518" text-anchor="middle" dominant-baseline="central">Citations present?</text>
+  <text class="t-sub"   x="516" y="534" text-anchor="middle" dominant-baseline="central">post-LLM gate</text>
+
+  <!-- No branch to decline -->
+  <line class="arr" x1="441" y1="522" x2="330" y2="522" stroke-width="1"/>
+  <line class="arr" x1="330" y1="522" x2="330" y2="390" stroke-width="1" marker-end="url(#ah)"/>
+  <text class="t-sub" x="384" y="514">no</text>
+
+  <!-- Yes branch down -->
+  <line class="arr" x1="516" y1="544" x2="516" y2="564" stroke-width="1" marker-end="url(#ah)"/>
+  <text class="t-sub" x="528" y="558">yes</text>
+
+  <!-- Final output -->
+  <rect class="box-teal" x="416" y="568" width="200" height="36" rx="6" stroke-width="0.5"/>
+  <text class="t-title" x="516" y="588" text-anchor="middle" dominant-baseline="central">Cited answer with sources</text>
+
+  <!-- Dashed line connecting ingestion to query -->
+  <line class="arr" x1="516" y1="178" x2="516" y2="220" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+</svg>

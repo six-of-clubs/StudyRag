@@ -1,28 +1,21 @@
 """
-Orchestrator pipeline for StudyRAG.
+Orchestrator pipeline:
 
 This is the single entry point for answering a question. It runs
 the full chain:
 
-    query → resolve collections → retrieve → (rerank) → relevance gate → prompt → LLM → cite
+    query → resolve collections → retrieve → rerank → relevance gate
+         → build prompt (with domain context) → LLM → cite
 
-Scoping rules:
-    - folder_id determines which academic subject's collection is searched.
-    - chat_id optionally adds the chat's temporary document collection.
-    - If neither is provided, there is nothing to search → automatic decline.
-    - The retriever NEVER sees collections outside the specified scope,
-      so there is zero cross-contamination between subjects.
+Domain context:
+    The folder name (e.g. "Foundation Models", "Linear Algebra") is
+    injected into the prompt so the LLM interprets terms within the
+    correct academic field.
 
 Model modes:
     - "fast"     → mistral:7b      (quick answers)
     - "thinking" → deepseek-r1:8b  (step-by-step reasoning)
     - "math"     → phi4-mini       (proofs, equations, calculations)
-
-The cite-or-decline policy is enforced at two levels:
-    1. PRE-LLM:  if no chunks pass the similarity threshold, decline
-                  immediately without wasting an LLM call.
-    2. POST-LLM: if the model's response contains no citations,
-                  treat it as a decline (the model hallucinated).
 """
 
 from __future__ import annotations
@@ -72,10 +65,17 @@ def ask(
     model_name = MODEL_PRESETS.get(mode, MODEL_PRESETS[DEFAULT_MODE])
     logger.info("Using mode '%s' → model '%s'", mode, model_name)
 
-    # --- Step 2: Resolve scope to collection names ---
+    # --- Step 2: Resolve scope and domain context ---
     from api.state import state
 
     collection_names = state.get_collection_names(folder_id, chat_id)
+
+    # Resolve folder name for domain context
+    subject = None
+    if folder_id:
+        folder = state.get_folder(folder_id)
+        if folder:
+            subject = folder.name
 
     if not collection_names:
         logger.info("No collections in scope — declining to answer.")
@@ -89,14 +89,14 @@ def ask(
         )
 
     logger.info(
-        "Searching %d collection(s): %s",
-        len(collection_names), collection_names,
+        "Searching %d collection(s): %s (subject: %s)",
+        len(collection_names), collection_names, subject or "none",
     )
 
     # --- Step 3: Retrieve (scoped) ---
     chunks = retrieve(query, collection_names)
 
-    # --- Step 4: Rerank (no-op until Phase 2) ---
+    # --- Step 4: Rerank ---
     chunks = rerank(query, chunks)
 
     # --- Step 5: Relevance gate (pre-LLM) ---
@@ -111,15 +111,15 @@ def ask(
             declined=True,
         )
 
-    # --- Step 6: Build prompt and call LLM ---
-    user_prompt = build_user_prompt(query, chunks)
+    # --- Step 6: Build prompt with domain context and call LLM ---
+    user_prompt = build_user_prompt(query, chunks, subject=subject)
     response_text = generate(SYSTEM_PROMPT, user_prompt, model_name=model_name)
 
     # --- Step 7: Parse citations (post-LLM gate) ---
     result = parse_citations(response_text, chunks)
 
     logger.info(
-        "Pipeline complete — mode=%s, declined=%s, sources=%d",
-        mode, result.declined, len(result.sources),
+        "Pipeline complete — mode=%s, subject=%s, declined=%s, sources=%d",
+        mode, subject or "none", result.declined, len(result.sources),
     )
     return result

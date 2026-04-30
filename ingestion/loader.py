@@ -1,5 +1,5 @@
 """
-Document loader for StudyRAG.
+Document loader:
 
 Reads PDF, PPTX, TXT, and MD files and returns a list of Document objects,
 each representing one logical page/slide with its source metadata attached.

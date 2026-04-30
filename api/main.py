@@ -1,10 +1,7 @@
 """
-StudyRAG — FastAPI application.
+FastAPI application: Serves the API routes and the static web frontend.
 
-Serves the API routes and the static web frontend.
-
-Usage:
-    python -m api.main
+Usage: python -m api.main
 """
 
 import logging

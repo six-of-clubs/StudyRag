@@ -1,6 +1,4 @@
 """
-Retriever for StudyRAG.
-
 Queries specific ChromaDB collections for the most relevant chunks given
 a user query. Only searches collections explicitly passed in — there is
 no global fallback. This prevents cross-contamination between subjects.

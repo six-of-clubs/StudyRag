@@ -1,8 +1,8 @@
 """
-API routes for StudyRAG.
+API routes
 
 Endpoints:
-    Folders:  CRUD + document upload + rename + pin + document delete
+    Folders:  CRUD + document upload + rename + pin + document delete + file serve
     Chats:    CRUD + query + temp document upload + rename + pin
     Models:   list available modes
     Status:   health check
@@ -16,6 +16,7 @@ import logging
 from pathlib import Path
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from fastapi.responses import FileResponse
 
 from api.models import (
     FolderCreate, FolderInfo, DocumentInfo,
@@ -23,12 +24,20 @@ from api.models import (
     QueryRequest, QueryResponse,
 )
 from api.state import state
-from config import MODEL_PRESETS, DEFAULT_MODE
+from config import MODEL_PRESETS, DEFAULT_MODE, settings
 from orchestrator.pipeline import ask as pipeline_ask
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+FILES_DIR = Path(settings.chroma_persist_dir).parent / "files"
+
+
+def _folder_files_dir(folder_id: str) -> Path:
+    d = FILES_DIR / folder_id
+    d.mkdir(parents=True, exist_ok=True)
+    return d
 
 
 # ---------------------------------------------------------------------------
@@ -39,11 +48,7 @@ router = APIRouter()
 def status():
     folders = state.list_folders()
     chats = state.list_chats()
-    return {
-        "status": "ok",
-        "folders": len(folders),
-        "chats": len(chats),
-    }
+    return {"status": "ok", "folders": len(folders), "chats": len(chats)}
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +57,6 @@ def status():
 
 @router.get("/api/models")
 def list_models():
-    """Return the available model modes and which Ollama model each maps to."""
     return {
         "modes": [
             {"id": mode, "model": model_name, "default": mode == DEFAULT_MODE}
@@ -68,11 +72,7 @@ def list_models():
 @router.get("/api/folders", response_model=list[FolderInfo])
 def list_folders():
     return [
-        FolderInfo(
-            id=f.id, name=f.name,
-            document_count=len(f.documents),
-            pinned=f.pinned,
-        )
+        FolderInfo(id=f.id, name=f.name, document_count=len(f.documents), pinned=f.pinned)
         for f in state.list_folders()
     ]
 
@@ -87,6 +87,9 @@ def create_folder(body: FolderCreate):
 def delete_folder(folder_id: str):
     if not state.delete_folder(folder_id):
         raise HTTPException(404, "Folder not found")
+    folder_dir = FILES_DIR / folder_id
+    if folder_dir.exists():
+        shutil.rmtree(folder_dir, ignore_errors=True)
     return {"deleted": True}
 
 
@@ -117,6 +120,9 @@ def delete_folder_document(folder_id: str, filename: str):
         raise HTTPException(404, "Document not found")
     del folder.documents[filename]
     state._save()
+    stored = _folder_files_dir(folder_id) / filename
+    if stored.exists():
+        stored.unlink()
     return {"deleted": True}
 
 
@@ -131,25 +137,52 @@ def list_folder_documents(folder_id: str):
     ]
 
 
+@router.get("/api/folders/{folder_id}/files/{filename}")
+def serve_file(folder_id: str, filename: str):
+    """Serve an uploaded file for viewing in the browser."""
+    folder = state.get_folder(folder_id)
+    if not folder:
+        raise HTTPException(404, "Folder not found")
+
+    file_path = _folder_files_dir(folder_id) / filename
+    if not file_path.exists():
+        raise HTTPException(404, "File not found on disk")
+
+    suffix = file_path.suffix.lower()
+    media_types = {
+        ".pdf": "application/pdf",
+        ".txt": "text/plain",
+        ".md": "text/markdown",
+        ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    }
+    media_type = media_types.get(suffix, "application/octet-stream")
+
+    return FileResponse(path=file_path, filename=filename, media_type=media_type)
+
+
 @router.post("/api/folders/{folder_id}/upload", response_model=DocumentInfo)
 async def upload_to_folder(folder_id: str, file: UploadFile = File(...)):
     folder = state.get_folder(folder_id)
     if not folder:
         raise HTTPException(404, "Folder not found")
 
-    tmp = Path(tempfile.mkdtemp())
+    persistent_dir = _folder_files_dir(folder_id)
+    persistent_path = persistent_dir / file.filename
+
+    with open(persistent_path, "wb") as f:
+        shutil.copyfileobj(file.file, f)
+
     try:
-        dest = tmp / file.filename
-        with open(dest, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-
-        count = state.ingest_to_folder(folder_id, dest)
+        count = state.ingest_to_folder(folder_id, persistent_path)
         if count == 0:
+            persistent_path.unlink(missing_ok=True)
             raise HTTPException(400, "No content could be extracted from this file")
-
         return DocumentInfo(filename=file.filename, chunk_count=count)
-    finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+    except HTTPException:
+        raise
+    except Exception as e:
+        persistent_path.unlink(missing_ok=True)
+        raise HTTPException(500, f"Ingestion failed: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -159,12 +192,8 @@ async def upload_to_folder(folder_id: str, file: UploadFile = File(...)):
 @router.get("/api/chats", response_model=list[ChatInfo])
 def list_chats():
     return [
-        ChatInfo(
-            id=c.id, title=c.title,
-            folder_id=c.folder_id,
-            pinned=c.pinned,
-            message_count=len(c.messages),
-        )
+        ChatInfo(id=c.id, title=c.title, folder_id=c.folder_id,
+                 pinned=c.pinned, message_count=len(c.messages))
         for c in state.list_chats()
     ]
 
@@ -188,16 +217,10 @@ def get_chat(chat_id: str):
     if not c:
         raise HTTPException(404, "Chat not found")
     return {
-        "id": c.id,
-        "title": c.title,
-        "folder_id": c.folder_id,
+        "id": c.id, "title": c.title, "folder_id": c.folder_id,
         "messages": [
-            {
-                "role": m.role,
-                "content": m.content,
-                "sources": m.sources,
-                "declined": m.declined,
-            }
+            {"role": m.role, "content": m.content,
+             "sources": m.sources, "declined": m.declined}
             for m in c.messages
         ],
         "temp_docs": c.temp_docs,
@@ -244,11 +267,9 @@ async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
         dest = tmp / file.filename
         with open(dest, "wb") as f:
             shutil.copyfileobj(file.file, f)
-
         count = state.ingest_to_chat(chat_id, dest)
         if count == 0:
             raise HTTPException(400, "No content could be extracted from this file")
-
         return DocumentInfo(filename=file.filename, chunk_count=count)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
@@ -260,7 +281,6 @@ async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
 
 @router.post("/api/extract-topic")
 def extract_topic(question: str):
-    """Use the LLM to extract a short topic title from a question."""
     from generation.llm import generate
     try:
         title = generate(
@@ -291,45 +311,29 @@ def query(body: QueryRequest):
         raise HTTPException(404, "Chat not found")
 
     folder_id = body.folder_id or chat.folder_id
-
-    # Save user message
     state.add_message(body.chat_id, "user", body.question)
 
-    # Run the full pipeline through the orchestrator
     try:
         result = pipeline_ask(
-            body.question,
-            folder_id=folder_id,
-            chat_id=body.chat_id,
-            mode=body.mode,
+            body.question, folder_id=folder_id,
+            chat_id=body.chat_id, mode=body.mode,
         )
     except ConnectionError as e:
         raise HTTPException(503, str(e))
 
-    # Save assistant message
     sources_dicts = [
-        {
-            "source_number": s.source_number,
-            "source_file": s.source_file,
-            "page_number": s.page_number,
-            "similarity": s.similarity,
-        }
+        {"source_number": s.source_number, "source_file": s.source_file,
+         "page_number": s.page_number, "similarity": s.similarity}
         for s in result.sources
     ]
-    state.add_message(
-        body.chat_id, "assistant", result.answer,
-        sources=sources_dicts, declined=result.declined,
-    )
+    state.add_message(body.chat_id, "assistant", result.answer,
+                      sources=sources_dicts, declined=result.declined)
 
     return QueryResponse(
         answer=result.answer,
         sources=[
-            SourceInfo(
-                source_number=s.source_number,
-                source_file=s.source_file,
-                page_number=s.page_number,
-                similarity=s.similarity,
-            )
+            SourceInfo(source_number=s.source_number, source_file=s.source_file,
+                       page_number=s.page_number, similarity=s.similarity)
             for s in result.sources
         ],
         declined=result.declined,

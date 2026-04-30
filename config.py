@@ -1,5 +1,5 @@
 """
-Centralised configuration for StudyRAG.
+Centralised configurations:
 
 Reads from .env file (or real environment variables) and exposes a single
 `settings` object that every other module imports.  Values are validated at

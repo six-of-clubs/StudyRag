@@ -1,5 +1,5 @@
 """
-Text chunker for StudyRAG.
+Text chunker:
 
 Takes a list of Document objects from the loader and splits them into
 smaller, overlapping chunks suitable for embedding. Each chunk inherits
@@ -7,8 +7,7 @@ its parent's metadata and gets an additional `chunk_index`.
 
 METADATA INJECTION: Each chunk's text is prefixed with its source file
 and page number so that the embedding model can match queries like
-"explain slide 12 in introduction_organization". Without this, metadata
-is invisible to vector search.
+"explain slide 12". Without this, metadata is invisible to vector search.
 
 Strategy:
     Fixed-size character windows with overlap. Splits prefer sentence
@@ -46,10 +45,6 @@ def _build_metadata_prefix(doc: Document) -> str:
     This gets prepended to every chunk so the embedding model can
     match queries that reference filenames, slide/page numbers, or
     file types.
-
-    Examples:
-        "[Introduction_Organization.pdf | Slide 12]"
-        "[calculus_notes.txt | Page 1]"
     """
     source = doc.metadata.get("source_file", "unknown")
     page = doc.metadata.get("page_number", "?")

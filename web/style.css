@@ -1,6 +1,3 @@
-/* ==========================================================================
-   StudyRAG — Dark Academic Theme (Complete)
-   ========================================================================== */
 
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=DM+Sans:wght@400;500;600&display=swap');
 
@@ -586,7 +583,7 @@ body { display: flex; }
   border: 1px solid var(--border-light);
   border-radius: 8px;
   padding: 4px;
-  min-width: 190px;
+  min-width: 240px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 
@@ -727,6 +724,16 @@ body { display: flex; }
   -webkit-appearance: none;
   appearance: none;
   outline: none;
+}
+
+.doc-item-link {
+  text-decoration: none;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.doc-item-link:hover {
+  color: var(--accent);
 }
 
 .doc-item:hover .doc-item-delete { opacity: 1; }

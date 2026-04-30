@@ -1,8 +1,8 @@
 """
-CLI ingestion for StudyRAG.
+CLI ingestion:
 
 Ingests documents into a specific source folder's ChromaDB collection
-via the state manager. There is no global collection — every document
+via the state manager. There is no global collection, every document
 belongs to exactly one folder.
 
 Usage:

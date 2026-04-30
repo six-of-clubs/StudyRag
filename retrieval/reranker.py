@@ -1,6 +1,4 @@
 """
-Reranker for StudyRAG.
-
 Uses a cross-encoder model to re-score retrieved chunks against the
 original query. This is far more accurate than the initial embedding
 similarity because the cross-encoder sees the query and chunk *together*

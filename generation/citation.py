@@ -1,5 +1,5 @@
 """
-Citation extraction and validation for StudyRAG.
+Citation extraction and validation_
 
 Parses the LLM's response for [N] citation markers and maps them
 back to the retrieved chunks, producing structured source references.

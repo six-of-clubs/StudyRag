@@ -1,5 +1,5 @@
 """
-API data models for StudyRAG.
+API data models:
 
 Pydantic schemas for request/response payloads and internal state.
 """

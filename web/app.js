@@ -4,10 +4,6 @@
 
 const API = "";
 
-// ---------------------------------------------------------------------------
-// SVG icon templates
-// ---------------------------------------------------------------------------
-
 const ICONS = {
   chat: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`,
   folder: `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>`,
@@ -17,7 +13,6 @@ const ICONS = {
   trash: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-2 14H7L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>`,
 };
 
-// Mode descriptions shown in the dropdown
 const MODE_INFO = {
   fast:     { label: "Fast",     desc: "Quick answers" },
   thinking: { label: "Thinking", desc: "Step-by-step reasoning" },
@@ -35,6 +30,7 @@ let activeFolderId = null;
 let currentView = "empty";
 let pendingEmptyChat = null;
 let currentMode = "fast";
+let currentFolderDocs = [];  // cached doc list for the active folder view
 
 // ---------------------------------------------------------------------------
 // API helpers
@@ -78,12 +74,10 @@ async function loadFolders() {
 function renderChatList() {
   const ul = document.getElementById("chat-list");
   ul.innerHTML = "";
-
   if (chats.length === 0) {
     ul.innerHTML = `<li class="muted" style="cursor:default;padding:8px 10px">No chats yet</li>`;
     return;
   }
-
   const sorted = [...chats].sort((a, b) => {
     if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
     return -1;
@@ -92,23 +86,16 @@ function renderChatList() {
   sorted.forEach(chat => {
     const li = document.createElement("li");
     if (currentView === "chat" && activeChatId === chat.id) li.classList.add("active");
-
     const pinHtml = chat.pinned ? `<span class="pin-indicator">${ICONS.pin}</span>` : "";
-
     li.innerHTML = `
       <span class="list-item-icon">${ICONS.chat}</span>
       <span class="list-item-name">${esc(chat.title)}</span>
       ${pinHtml}
       <button class="list-item-dots" title="Options">${ICONS.dots}</button>
     `;
-
     li.querySelector(".list-item-name").addEventListener("click", () => openChat(chat.id));
     const dotsBtn = li.querySelector(".list-item-dots");
-    dotsBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      showContextMenu(dotsBtn, "chat", chat);
-    });
-
+    dotsBtn.addEventListener("click", (e) => { e.stopPropagation(); showContextMenu(dotsBtn, "chat", chat); });
     ul.appendChild(li);
   });
 }
@@ -120,12 +107,10 @@ function renderChatList() {
 function renderFolderList() {
   const ul = document.getElementById("folder-list");
   ul.innerHTML = "";
-
   if (folders.length === 0) {
     ul.innerHTML = `<li class="muted" style="cursor:default;padding:8px 10px">No folders yet</li>`;
     return;
   }
-
   const sorted = [...folders].sort((a, b) => {
     if (a.pinned !== b.pinned) return b.pinned ? 1 : -1;
     return 0;
@@ -134,23 +119,16 @@ function renderFolderList() {
   sorted.forEach(folder => {
     const li = document.createElement("li");
     if (currentView === "folder" && activeFolderId === folder.id) li.classList.add("active");
-
     const pinHtml = folder.pinned ? `<span class="pin-indicator">${ICONS.pin}</span>` : "";
-
     li.innerHTML = `
       <span class="list-item-icon">${ICONS.folder}</span>
       <span class="list-item-name">${esc(folder.name)}</span>
       ${pinHtml}
       <button class="list-item-dots" title="Options">${ICONS.dots}</button>
     `;
-
     li.querySelector(".list-item-name").addEventListener("click", () => openFolder(folder.id));
     const dotsBtn = li.querySelector(".list-item-dots");
-    dotsBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      showContextMenu(dotsBtn, "folder", folder);
-    });
-
+    dotsBtn.addEventListener("click", (e) => { e.stopPropagation(); showContextMenu(dotsBtn, "folder", folder); });
     ul.appendChild(li);
   });
 }
@@ -178,19 +156,13 @@ function updateFolderPickerLabel() {
   const label = document.getElementById("folder-picker-label");
   const btn = document.getElementById("btn-folder-picker");
   const selected = folders.find(f => f.id === sel.value);
-  if (selected) {
-    label.textContent = selected.name;
-    btn.classList.add("has-folder");
-  } else {
-    label.textContent = "No folder";
-    btn.classList.remove("has-folder");
-  }
+  if (selected) { label.textContent = selected.name; btn.classList.add("has-folder"); }
+  else { label.textContent = "No folder"; btn.classList.remove("has-folder"); }
 }
 
 document.getElementById("btn-folder-picker").addEventListener("click", (e) => {
   e.stopPropagation();
   closeAllDropdowns();
-
   const btn = e.currentTarget;
   const rect = btn.getBoundingClientRect();
   const sel = document.getElementById("folder-select");
@@ -204,32 +176,20 @@ document.getElementById("btn-folder-picker").addEventListener("click", (e) => {
   const noItem = document.createElement("button");
   noItem.className = "folder-dropdown-item" + (!sel.value ? " active" : "");
   noItem.textContent = "No folder";
-  noItem.addEventListener("click", () => {
-    sel.value = "";
-    updateFolderPickerLabel();
-    syncFolderToChat();
-    dd.remove();
-  });
+  noItem.addEventListener("click", () => { sel.value = ""; updateFolderPickerLabel(); syncFolderToChat(); dd.remove(); });
   dd.appendChild(noItem);
 
   folders.forEach(f => {
     const item = document.createElement("button");
     item.className = "folder-dropdown-item" + (sel.value === f.id ? " active" : "");
     item.innerHTML = `${ICONS.folder} ${esc(f.name)}`;
-    item.addEventListener("click", () => {
-      sel.value = f.id;
-      updateFolderPickerLabel();
-      syncFolderToChat();
-      dd.remove();
-    });
+    item.addEventListener("click", () => { sel.value = f.id; updateFolderPickerLabel(); syncFolderToChat(); dd.remove(); });
     dd.appendChild(item);
   });
 
   document.body.appendChild(dd);
   setTimeout(() => {
-    const handler = (ev) => {
-      if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener("click", handler); }
-    };
+    const handler = (ev) => { if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener("click", handler); } };
     document.addEventListener("click", handler);
   }, 0);
 });
@@ -255,7 +215,6 @@ function updateModeButton() {
 document.getElementById("btn-mode-picker").addEventListener("click", (e) => {
   e.stopPropagation();
   closeAllDropdowns();
-
   const btn = e.currentTarget;
   const rect = btn.getBoundingClientRect();
 
@@ -268,29 +227,20 @@ document.getElementById("btn-mode-picker").addEventListener("click", (e) => {
   Object.entries(MODE_INFO).forEach(([modeId, info]) => {
     const item = document.createElement("button");
     item.className = "mode-dropdown-item" + (currentMode === modeId ? " active" : "");
-    item.innerHTML = `
-      <span>${info.label}</span>
-      <span class="mode-desc">${info.desc}</span>
-    `;
-    item.addEventListener("click", () => {
-      currentMode = modeId;
-      updateModeButton();
-      dd.remove();
-    });
+    item.innerHTML = `<span>${info.label}</span><span class="mode-desc">${info.desc}</span>`;
+    item.addEventListener("click", () => { currentMode = modeId; updateModeButton(); dd.remove(); });
     dd.appendChild(item);
   });
 
   document.body.appendChild(dd);
   setTimeout(() => {
-    const handler = (ev) => {
-      if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener("click", handler); }
-    };
+    const handler = (ev) => { if (!dd.contains(ev.target)) { dd.remove(); document.removeEventListener("click", handler); } };
     document.addEventListener("click", handler);
   }, 0);
 });
 
 // ---------------------------------------------------------------------------
-// Context menu (three-dot)
+// Context menu
 // ---------------------------------------------------------------------------
 
 let ctxTarget = null;
@@ -298,10 +248,8 @@ let ctxTarget = null;
 function showContextMenu(buttonEl, type, data) {
   closeAllDropdowns();
   ctxTarget = { type, data };
-
   const menu = document.getElementById("context-menu");
-  const pinLabel = document.getElementById("ctx-pin-label");
-  pinLabel.textContent = data.pinned ? "Unpin" : "Pin";
+  document.getElementById("ctx-pin-label").textContent = data.pinned ? "Unpin" : "Pin";
   menu.classList.remove("hidden");
 
   const rect = buttonEl.getBoundingClientRect();
@@ -313,12 +261,7 @@ function showContextMenu(buttonEl, type, data) {
   menu.style.left = left + "px";
 
   setTimeout(() => {
-    const handler = (ev) => {
-      if (!menu.contains(ev.target)) {
-        menu.classList.add("hidden");
-        document.removeEventListener("click", handler);
-      }
-    };
+    const handler = (ev) => { if (!menu.contains(ev.target)) { menu.classList.add("hidden"); document.removeEventListener("click", handler); } };
     document.addEventListener("click", handler);
   }, 0);
 }
@@ -326,7 +269,6 @@ function showContextMenu(buttonEl, type, data) {
 document.getElementById("context-menu").addEventListener("click", async (e) => {
   const btn = e.target.closest("[data-action]");
   if (!btn || !ctxTarget) return;
-
   const { type, data } = ctxTarget;
   const action = btn.dataset.action;
   document.getElementById("context-menu").classList.add("hidden");
@@ -346,20 +288,12 @@ document.getElementById("context-menu").addEventListener("click", async (e) => {
       }
     });
   }
-
   if (action === "pin") {
-    if (type === "chat") {
-      await api("PATCH", `/api/chats/${data.id}/pin`);
-      await loadChats();
-    } else {
-      await api("PATCH", `/api/folders/${data.id}/pin`);
-      await loadFolders();
-    }
+    if (type === "chat") { await api("PATCH", `/api/chats/${data.id}/pin`); await loadChats(); }
+    else { await api("PATCH", `/api/folders/${data.id}/pin`); await loadFolders(); }
   }
-
   if (action === "delete") {
-    const name = data.title || data.name;
-    if (!confirm(`Delete "${name}"?`)) return;
+    if (!confirm(`Delete "${data.title || data.name}"?`)) return;
     if (type === "chat") {
       await api("DELETE", `/api/chats/${data.id}`);
       if (activeChatId === data.id) { pendingEmptyChat = null; showEmpty(); }
@@ -370,51 +304,37 @@ document.getElementById("context-menu").addEventListener("click", async (e) => {
       await loadFolders();
     }
   }
-
   ctxTarget = null;
 });
 
 function closeAllDropdowns() {
   document.getElementById("context-menu").classList.add("hidden");
-  const dd1 = document.getElementById("folder-dropdown-live");
-  if (dd1) dd1.remove();
-  const dd2 = document.getElementById("mode-dropdown-live");
-  if (dd2) dd2.remove();
+  const dd1 = document.getElementById("folder-dropdown-live"); if (dd1) dd1.remove();
+  const dd2 = document.getElementById("mode-dropdown-live"); if (dd2) dd2.remove();
 }
 
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape") closeAllDropdowns();
-});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeAllDropdowns(); });
 
 // ---------------------------------------------------------------------------
 // Views
 // ---------------------------------------------------------------------------
 
 function showEmpty() {
-  currentView = "empty";
-  activeChatId = null;
-  activeFolderId = null;
+  currentView = "empty"; activeChatId = null; activeFolderId = null;
   document.getElementById("empty-state").classList.remove("hidden");
   document.getElementById("chat-view").classList.add("hidden");
   document.getElementById("folder-view").classList.add("hidden");
-  renderChatList();
-  renderFolderList();
+  renderChatList(); renderFolderList();
 }
 
 async function openChat(chatId) {
-  currentView = "chat";
-  activeChatId = chatId;
-  activeFolderId = null;
-
+  currentView = "chat"; activeChatId = chatId; activeFolderId = null;
   document.getElementById("empty-state").classList.add("hidden");
   document.getElementById("folder-view").classList.add("hidden");
   document.getElementById("chat-view").classList.remove("hidden");
-
-  renderChatList();
-  renderFolderList();
+  renderChatList(); renderFolderList();
 
   const chat = await api("GET", `/api/chats/${chatId}`);
-
   document.getElementById("folder-select").value = chat.folder_id || "";
   updateFolderPickerLabel();
 
@@ -426,7 +346,6 @@ async function openChat(chatId) {
     chatView.classList.remove("empty-chat");
     document.getElementById("chat-title").textContent = chat.title;
   }
-
   renderMessages(chat.messages);
   document.getElementById("query-input").focus();
 }
@@ -460,21 +379,17 @@ function createMessageEl(msg) {
 }
 
 async function openFolder(folderId) {
-  currentView = "folder";
-  activeFolderId = folderId;
-  activeChatId = null;
-
+  currentView = "folder"; activeFolderId = folderId; activeChatId = null;
   document.getElementById("empty-state").classList.add("hidden");
   document.getElementById("chat-view").classList.add("hidden");
   document.getElementById("folder-view").classList.remove("hidden");
-
-  renderChatList();
-  renderFolderList();
+  renderChatList(); renderFolderList();
 
   const folder = folders.find(f => f.id === folderId);
   document.getElementById("folder-view-title").textContent = folder ? folder.name : "Folder";
 
   const docs = await api("GET", `/api/folders/${folderId}/documents`);
+  currentFolderDocs = docs;
   const container = document.getElementById("folder-documents");
 
   if (docs.length === 0) {
@@ -485,7 +400,9 @@ async function openFolder(folderId) {
       const item = document.createElement("div");
       item.className = "doc-item";
       item.innerHTML = `
-        <span class="doc-item-name">${ICONS.file} ${esc(d.filename)}</span>
+        <a class="doc-item-name doc-item-link" href="/api/folders/${folderId}/files/${encodeURIComponent(d.filename)}" target="_blank" title="Open file">
+          ${ICONS.file} ${esc(d.filename)}
+        </a>
         <button class="doc-item-delete" title="Remove document">${ICONS.trash}</button>
       `;
       item.querySelector(".doc-item-delete").addEventListener("click", async () => {
@@ -506,10 +423,7 @@ async function openFolder(folderId) {
 document.getElementById("btn-new-chat").addEventListener("click", async () => {
   if (pendingEmptyChat) {
     const existing = chats.find(c => c.id === pendingEmptyChat);
-    if (existing && existing.message_count === 0) {
-      openChat(pendingEmptyChat);
-      return;
-    }
+    if (existing && existing.message_count === 0) { openChat(pendingEmptyChat); return; }
     pendingEmptyChat = null;
   }
   const chat = await api("POST", "/api/chats", { title: "New Chat" });
@@ -526,6 +440,7 @@ document.getElementById("btn-new-folder").addEventListener("click", () => {
   });
 });
 
+// Chat file upload (temporary)
 document.getElementById("btn-chat-upload").addEventListener("click", () => {
   document.getElementById("chat-file-input").click();
 });
@@ -558,6 +473,7 @@ document.getElementById("chat-file-input").addEventListener("change", async (e) 
   }
 });
 
+// Folder file upload (permanent) — with duplicate detection
 document.getElementById("btn-folder-upload").addEventListener("click", () => {
   document.getElementById("folder-file-input").click();
 });
@@ -568,6 +484,14 @@ document.getElementById("folder-file-input").addEventListener("change", async (e
   e.target.value = "";
 
   for (const file of files) {
+    // Check for duplicate
+    const exists = currentFolderDocs.some(d => d.filename === file.name);
+    if (exists) {
+      if (!confirm(`"${file.name}" already exists in this folder. Do you want to overwrite it?`)) {
+        continue;  // skip this file
+      }
+    }
+
     const fd = new FormData();
     fd.append("file", file);
     try {
@@ -604,10 +528,7 @@ input.addEventListener("input", () => {
 });
 
 input.addEventListener("keydown", (e) => {
-  if (e.key === "Enter" && !e.shiftKey) {
-    e.preventDefault();
-    sendQuery();
-  }
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendQuery(); }
 });
 
 btnSend.addEventListener("click", sendQuery);
@@ -617,7 +538,6 @@ async function sendQuery() {
   if (!question || !activeChatId) return;
 
   const folderId = document.getElementById("folder-select").value || null;
-
   input.value = "";
   input.style.height = "auto";
   btnSend.disabled = true;
@@ -634,44 +554,27 @@ async function sendQuery() {
 
   const loading = document.createElement("div");
   loading.className = "message assistant loading";
-  loading.innerHTML = `
-    <div class="message-role">StudyRAG</div>
-    <div class="message-content">Thinking</div>
-  `;
+  loading.innerHTML = `<div class="message-role">StudyRAG</div><div class="message-content">Thinking</div>`;
   container.appendChild(loading);
   container.scrollTop = container.scrollHeight;
 
   try {
     const result = await api("POST", "/api/query", {
-      question,
-      chat_id: activeChatId,
-      folder_id: folderId,
-      mode: currentMode,
+      question, chat_id: activeChatId, folder_id: folderId, mode: currentMode,
     });
-
     loading.remove();
     container.appendChild(createMessageEl({
-      role: "assistant",
-      content: result.answer,
-      sources: result.sources,
-      declined: result.declined,
+      role: "assistant", content: result.answer,
+      sources: result.sources, declined: result.declined,
     }));
-
     await loadChats();
-
     const chat = chats.find(c => c.id === activeChatId);
     if (chat && chat.message_count <= 2 && chat.title === "New Chat") {
       extractAndRename(activeChatId, question);
     }
-
   } catch (err) {
     loading.remove();
-    container.appendChild(createMessageEl({
-      role: "assistant",
-      content: `Error: ${err.message}`,
-      sources: [],
-      declined: true,
-    }));
+    container.appendChild(createMessageEl({ role: "assistant", content: `Error: ${err.message}`, sources: [], declined: true }));
   }
 
   container.scrollTop = container.scrollHeight;
@@ -703,7 +606,6 @@ function showModal(title, placeholder, onConfirm) {
   const overlay = document.createElement("div");
   overlay.className = "modal-overlay";
   const isRename = placeholder !== "Folder name";
-
   overlay.innerHTML = `
     <div class="modal">
       <h3>${esc(title)}</h3>
@@ -714,18 +616,13 @@ function showModal(title, placeholder, onConfirm) {
       </div>
     </div>
   `;
-
   const inputEl = overlay.querySelector("input");
-  const cancelBtn = overlay.querySelector(".btn-modal-cancel");
-  const confirmBtn = overlay.querySelector(".btn-modal-confirm");
   const close = () => overlay.remove();
-
-  cancelBtn.addEventListener("click", close);
+  overlay.querySelector(".btn-modal-cancel").addEventListener("click", close);
   overlay.addEventListener("click", (e) => { if (e.target === overlay) close(); });
   const submit = () => { onConfirm(inputEl.value); close(); };
-  confirmBtn.addEventListener("click", submit);
+  overlay.querySelector(".btn-modal-confirm").addEventListener("click", submit);
   inputEl.addEventListener("keydown", (e) => { if (e.key === "Enter") submit(); });
-
   document.body.appendChild(overlay);
   inputEl.focus();
   inputEl.select();

@@ -1,5 +1,5 @@
 """
-Ollama LLM client for StudyRAG.
+The Ollama LLM client:
 
 Thin wrapper around the Ollama Python client. Sends a system + user
 message pair and returns the raw response text.
@@ -32,6 +32,7 @@ def generate(system_prompt: str, user_prompt: str, model_name: str | None = None
     Raises:
         ConnectionError: if Ollama is unreachable.
     """
+    
     model = model_name or settings.ollama_model
     client = ollama.Client(host=settings.ollama_base_url)
 
