@@ -18,8 +18,8 @@ import re
 from pathlib import Path
 from dataclasses import dataclass, field
 
-import chromadb
-from sentence_transformers import SentenceTransformer
+import vectorstore
+from embedding import embed_texts
 
 from config import settings
 from ingestion.loader import load_file
@@ -44,20 +44,6 @@ def _chunk_id(source_file: str, page: int, chunk_idx: int, prefix: str = "") -> 
     key = f"{prefix}{source_file}:p{page}:c{chunk_idx}"
     return hashlib.sha256(key.encode()).hexdigest()[:16]
 
-
-# ---------------------------------------------------------------------------
-# Embedding model singleton
-# ---------------------------------------------------------------------------
-
-_embed_model: SentenceTransformer | None = None
-
-
-def _get_embed_model() -> SentenceTransformer:
-    global _embed_model
-    if _embed_model is None:
-        logger.info("Loading embedding model '%s' ...", settings.embedding_model)
-        _embed_model = SentenceTransformer(settings.embedding_model)
-    return _embed_model
 
 
 # ---------------------------------------------------------------------------
@@ -97,9 +83,7 @@ class StateManager:
     def __init__(self):
         self.folders: dict[str, FolderState] = {}
         self.chats: dict[str, ChatState] = {}
-        self._chroma = chromadb.PersistentClient(
-            path=settings.chroma_persist_dir
-        )
+        self._chroma = vectorstore.get_client()
         self._load()
 
     # --- Persistence ---
@@ -163,9 +147,7 @@ class StateManager:
 
         folder = FolderState(id=fid, name=name, collection_name=col_name)
         self.folders[fid] = folder
-        self._chroma.get_or_create_collection(
-            name=col_name, metadata={"hnsw:space": "cosine"},
-        )
+        vectorstore.get_or_create(col_name)
         self._save()
         logger.info("Created folder '%s' (id=%s, col=%s)", name, fid, col_name)
         return folder
@@ -202,17 +184,14 @@ class StateManager:
         if not chunks:
             return 0
 
-        model = _get_embed_model()
-        collection = self._chroma.get_or_create_collection(
-            name=folder.collection_name,
-            metadata={"hnsw:space": "cosine"},
-        )
+        collection = vectorstore.get_or_create(folder.collection_name)
+        
 
         ids = [_chunk_id(c.metadata["source_file"], c.metadata["page_number"],
                          c.metadata["chunk_index"]) for c in chunks]
         texts = [c.text for c in chunks]
         metadatas = [c.metadata for c in chunks]
-        embeddings = model.encode(texts, show_progress_bar=False).tolist()
+        embeddings = embed_texts(texts)
 
         collection.upsert(
             ids=ids, documents=texts,
@@ -240,18 +219,15 @@ class StateManager:
         if not chunks:
             return 0
 
-        model = _get_embed_model()
         col_name = _chat_collection_name(chat_id)
-        collection = self._chroma.get_or_create_collection(
-            name=col_name, metadata={"hnsw:space": "cosine"},
-        )
+        collection = vectorstore.get_or_create(col_name)
 
         ids = [_chunk_id(c.metadata["source_file"], c.metadata["page_number"],
                          c.metadata["chunk_index"], prefix=f"chat_{chat_id}_")
                for c in chunks]
         texts = [c.text for c in chunks]
         metadatas = [c.metadata for c in chunks]
-        embeddings = model.encode(texts, show_progress_bar=False).tolist()
+        embeddings = embed_texts(texts)
 
         collection.upsert(
             ids=ids, documents=texts,
@@ -340,7 +316,7 @@ class StateManager:
         Resolve a folder ID and/or chat ID into a list of ChromaDB
         collection names that the retriever should search.
 
-        This is the ONLY place that maps user-facing IDs to storage.
+        This is the only place that maps user-facing IDs to storage.
         The retriever receives these names and searches nothing else,
         ensuring strict isolation between academic subjects.
         """

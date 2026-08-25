@@ -31,7 +31,6 @@ _SENTENCE_END = re.compile(r"(?<=[.!?])\s+")
 
 @dataclass
 class Chunk:
-    """A text fragment ready for embedding, with full provenance."""
 
     text: str
     metadata: dict = field(default_factory=dict)
@@ -39,13 +38,7 @@ class Chunk:
 
 
 def _build_metadata_prefix(doc: Document) -> str:
-    """
-    Build a human-readable prefix from document metadata.
 
-    This gets prepended to every chunk so the embedding model can
-    match queries that reference filenames, slide/page numbers, or
-    file types.
-    """
     source = doc.metadata.get("source_file", "unknown")
     page = doc.metadata.get("page_number", "?")
     file_type = doc.metadata.get("file_type", "")
@@ -58,7 +51,7 @@ def _build_metadata_prefix(doc: Document) -> str:
 
 def _find_split_point(text: str, target: int) -> int:
     """
-    Find the best position to split `text` at approximately `target` chars.
+    Find the split in `text` at approximately `target` chars.
 
     Prefers splitting at a sentence boundary. Falls back to whitespace.
     Falls back to the hard target if neither is found.
@@ -87,7 +80,7 @@ def _find_split_point(text: str, target: int) -> int:
 
 def chunk_document(doc: Document) -> list[Chunk]:
     """
-    Split a single Document into overlapping Chunks.
+    Split a single Document into Chunks. (overlaps possible)
 
     Uses `settings.chunk_size` and `settings.chunk_overlap` from config.
     Each chunk is prefixed with metadata (filename + page number).

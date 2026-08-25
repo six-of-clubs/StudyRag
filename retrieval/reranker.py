@@ -1,120 +1,109 @@
 """
-Uses a cross-encoder model to re-score retrieved chunks against the
-original query. This is far more accurate than the initial embedding
-similarity because the cross-encoder sees the query and chunk *together*
-rather than comparing independent embeddings.
+Cross-encoder reranking:
 
-Flow:
-    1. Receive top-k chunks from the retriever (loosely filtered)
-    2. Score each (query, chunk) pair with the cross-encoder
-    3. Sort by cross-encoder score (higher = more relevant)
-    4. Filter out chunks below the reranker threshold
-    5. Return the re-ranked list
+A bi-encoder (the embedding model) turns the query and each chunk into vectors
+independently, then compares them. A cross-encoder feeds the query and chunk
+through the transformer together, so every query token can attend to every
+chunk token. That is far more accurate, and far too slow to run over a whole
+collection, which is why it runs only over the candidate pool that vector
+search narrowed down.
 
-The cross-encoder is ~90MB and runs on CPU in milliseconds per pair,
-so reranking 5-10 chunks adds negligible latency.
+The threshold here, not the retriever's similarity floor, is the real relevance
+gate. If nothing clears it, the orchestrator declines rather than feeding the
+LLM weak context and hoping the citation policy catches it.
 """
 
 from __future__ import annotations
 
 import logging
+import math
+
 from sentence_transformers import CrossEncoder
 
+from config import settings
 from retrieval.retriever import RetrievedChunk
 
 logger = logging.getLogger(__name__)
 
-# Cross-encoder model — loaded once, cached for the process lifetime
 _reranker: CrossEncoder | None = None
-
-# Threshold for the cross-encoder score. Scores are roughly -10 to +10,
-# with positive meaning relevant. 0.0 is a reasonable starting point;
-# tune based on your documents.
-RERANKER_THRESHOLD = -2.0
-
-RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
 
 
 def _get_reranker() -> CrossEncoder:
     """Lazy-load and cache the cross-encoder model."""
     global _reranker
     if _reranker is None:
-        logger.info("Loading reranker model '%s' ...", RERANKER_MODEL)
-        _reranker = CrossEncoder(RERANKER_MODEL)
+        logger.info("Loading reranker model '%s' ...", settings.reranker_model)
+        _reranker = CrossEncoder(settings.reranker_model)
         logger.info("Reranker loaded.")
     return _reranker
 
 
+def _to_similarity(score: float) -> float:
+    """
+    Map a raw cross-encoder logit (roughly -10..+10) into 0..1 for display.
+
+    The UI shows a similarity bar and users expect a
+    percentage. Filtering uses the raw score, not this.
+    """
+    return 1.0 / (1.0 + math.exp(-score))
+
+
 def rerank(query: str, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
     """
-    Re-score and re-sort chunks using a cross-encoder model.
+    Re-score, re-sort, filter, and truncate the candidate pool.
 
     Args:
         query: the user's original question
-        chunks: chunks from the retriever, already filtered by vector
-                similarity threshold
+        chunks: candidates from the retriever
 
     Returns:
-        Re-ranked list of chunks, sorted by cross-encoder score,
-        with low-scoring chunks removed.
+        At most settings.top_k chunks, best first. Empty if none clear the
+        threshold -- the signal for the orchestrator to decline.
     """
     if not chunks:
         return []
 
-    if len(chunks) == 1:
-        # No point reranking a single chunk, but still score it
-        model = _get_reranker()
-        score = model.predict([(query, chunks[0].text)])[0]
-        logger.debug("Single chunk reranker score: %.3f", score)
-        if score < RERANKER_THRESHOLD:
-            logger.info("Single chunk below reranker threshold (%.3f < %.3f)",
-                        score, RERANKER_THRESHOLD)
-            return []
-        return chunks
-
     model = _get_reranker()
+    threshold = settings.reranker_threshold
 
-    # Build (query, chunk_text) pairs
-    pairs = [(query, chunk.text) for chunk in chunks]
+    scores = model.predict([(query, chunk.text) for chunk in chunks])
 
-    # Score all pairs in one batch
-    scores = model.predict(pairs)
+    for chunk, score in zip(chunks, scores):
+        chunk.rerank_score = float(score)
 
-    # Attach scores and sort
-    scored = list(zip(chunks, scores))
-    scored.sort(key=lambda x: x[1], reverse=True)
+    ranked = sorted(chunks, key=lambda c: c.rerank_score, reverse=True)
 
-    # Log all scores for debugging
-    for chunk, score in scored:
-        logger.debug(
-            "  reranker: %.3f | %s p.%s | sim=%.3f",
-            score,
-            chunk.metadata.get("source_file", "?"),
-            chunk.metadata.get("page_number", "?"),
-            chunk.similarity,
-        )
+    kept: list[RetrievedChunk] = []
+    for chunk in ranked:
+        if chunk.rerank_score < threshold:
+            continue
+        # Overwrite the vector similarity with the cross-encoder's opinion,
+        # since that is what the citation display should reflect.
+        chunk.similarity = _to_similarity(chunk.rerank_score)
+        kept.append(chunk)
+        if len(kept) >= settings.top_k:
+            break
 
-    # Filter by threshold
-    reranked = []
-    for chunk, score in scored:
-        if score >= RERANKER_THRESHOLD:
-            # Update the similarity to reflect the reranker's opinion
-            # Normalize cross-encoder score to 0..1 range for display
-            # ms-marco scores are roughly -10 to +10, sigmoid maps to 0..1
-            import math
-            normalized = 1.0 / (1.0 + math.exp(-score))
-            chunk.similarity = normalized
-            reranked.append(chunk)
-        else:
+    if logger.isEnabledFor(logging.DEBUG):
+        for chunk in ranked:
             logger.debug(
-                "  filtered by reranker: %.3f < %.3f | %s p.%s",
-                score, RERANKER_THRESHOLD,
+                "  rerank %+.3f %s | %s p.%s",
+                chunk.rerank_score,
+                "keep" if chunk.rerank_score >= threshold else "drop",
                 chunk.metadata.get("source_file", "?"),
                 chunk.metadata.get("page_number", "?"),
             )
 
+    above = sum(1 for c in ranked if c.rerank_score >= threshold)
     logger.info(
-        "Reranked %d → %d chunks (threshold=%.1f) for: '%s'",
-        len(chunks), len(reranked), RERANKER_THRESHOLD, query[:60],
+        "Reranked %d candidate(s) -> %d above threshold %.1f -> kept top %d for: '%s'",
+        len(chunks), above, threshold, len(kept), query[:60],
     )
-    return reranked
+
+    if not kept and ranked:
+        logger.info(
+            "Best candidate scored %+.3f, below threshold %.1f -- declining.",
+            ranked[0].rerank_score, threshold,
+        )
+
+    return kept

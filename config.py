@@ -20,13 +20,15 @@ load_dotenv(_env_path)
 def _env(key: str, default: str) -> str:
     return os.getenv(key, default)
 
-
 def _env_int(key: str, default: int) -> int:
     return int(os.getenv(key, str(default)))
 
 
 def _env_float(key: str, default: float) -> float:
     return float(os.getenv(key, str(default)))
+
+def _env_bool(key: str, default: bool) -> bool:
+    return os.getenv(key, str(default)).strip().lower() in ("1", "true", "yes", "on")
 
 
 # ---------------------------------------------------------------------------
@@ -61,6 +63,12 @@ class Settings:
     # Retrieval
     top_k: int = field(default_factory=lambda: _env_int("TOP_K", 5))
     similarity_threshold: float = field(default_factory=lambda: _env_float("SIMILARITY_THRESHOLD", 0.3))
+    retrieval_candidates: int = field(default_factory=lambda: _env_int("RETRIEVAL_CANDIDATES", 30))  
+    reranker_model: str = field(default_factory=lambda: _env("RERANKER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")) 
+    reranker_threshold: float  = field(default_factory=lambda: _env_float("RERANKER_THRESHOLD", -2.0)) 
+
+    # Generation
+    citation_repair: bool = field(default_factory=lambda: _env_bool("CITATION_REPAIR", True))
 
     # Vector store
     chroma_persist_dir: str = field(default_factory=lambda: _env("CHROMA_PERSIST_DIR", "./data/chroma"))
@@ -68,6 +76,7 @@ class Settings:
     # Server
     api_host: str = field(default_factory=lambda: _env("API_HOST", "0.0.0.0"))
     api_port: int = field(default_factory=lambda: _env_int("API_PORT", 8000))
+
 
     def __post_init__(self):
         # Validate critical constraints
@@ -80,6 +89,13 @@ class Settings:
             raise ValueError(
                 f"SIMILARITY_THRESHOLD must be between 0 and 1, "
                 f"got {self.similarity_threshold}"
+            )
+        
+        if self.retrieval_candidates < self.top_k:
+            raise ValueError(
+                f"RETRIEVAL_CANDIDATES ({self.retrieval_candidates}) must be >= "
+                f"TOP_K ({self.top_k}) — the reranker cannot return more chunks "
+                f"than the retriever gives it"
             )
 
 
