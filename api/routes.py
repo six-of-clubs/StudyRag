@@ -6,6 +6,11 @@ Endpoints:
     Chats:    CRUD + query + temp document upload + rename + pin
     Models:   list available modes
     Status:   health check
+
+FILENAME SAFETY
+    Four endpoints build a filesystem path out of a name the client supplied:
+    two from the multipart upload body, two from the URL. Every one of them
+    goes through _safe_filename() first.
 """
 
 from __future__ import annotations
@@ -13,7 +18,7 @@ from __future__ import annotations
 import shutil
 import tempfile
 import logging
-from pathlib import Path
+from pathlib import Path, PurePath
 
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from fastapi.responses import FileResponse
@@ -32,6 +37,44 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 FILES_DIR = Path(settings.chroma_persist_dir).parent / "files"
+
+MAX_FILENAME_LENGTH = 200
+
+
+def _safe_filename(raw: str | None) -> str:
+    """
+    Reducing a client-supplied filename to a single, safe path component:
+
+    `UploadFile.filename` is fully attacker-controlled. Joining it to a 
+    directory without checking is a possible path traversal: 
+    a filename of "../../../.ssh/authorized_keys" escapes the
+    upload folder and writes wherever the server process can reach.
+
+    PurePath(...).name discards everything up to the last separator, so any
+    directory component ["../", "/etc/", "C:\\Windows\\", ..] are dropped and only
+    the final segment survives. The remaining checks reject the leftovers that
+    are still a valid `.name`: "..", "." and empty strings.
+
+    Leading dots are rejected too. They are not a traversal risk, but a file
+    called ".env" or ".gitignore" sitting in the upload directory is also something
+    we would like to prevent.
+    """
+    if not raw:
+        raise HTTPException(400, "Filename is required")
+
+    name = PurePath(raw).name.strip()
+
+    if not name or name in (".", ".."):
+        raise HTTPException(400, "Invalid filename")
+    if name.startswith("."):
+        raise HTTPException(400, "Filenames may not start with a dot")
+    if len(name) > MAX_FILENAME_LENGTH:
+        raise HTTPException(400, "Filename is too long")
+
+    if name != raw:
+        logger.warning("Sanitised filename %r → %r", raw, name)
+
+    return name
 
 
 def _folder_files_dir(folder_id: str) -> Path:
@@ -116,11 +159,15 @@ def delete_folder_document(folder_id: str, filename: str):
     folder = state.get_folder(folder_id)
     if not folder:
         raise HTTPException(404, "Folder not found")
-    if filename not in folder.documents:
+
+    safe_name = _safe_filename(filename)
+    if safe_name not in folder.documents:
         raise HTTPException(404, "Document not found")
-    del folder.documents[filename]
+
+    del folder.documents[safe_name]
     state._save()
-    stored = _folder_files_dir(folder_id) / filename
+
+    stored = _folder_files_dir(folder_id) / safe_name
     if stored.exists():
         stored.unlink()
     return {"deleted": True}
@@ -144,20 +191,27 @@ def serve_file(folder_id: str, filename: str):
     if not folder:
         raise HTTPException(404, "Folder not found")
 
-    file_path = _folder_files_dir(folder_id) / filename
+    safe_name = _safe_filename(filename)
+
+    # Only serve files this folder actually knows about. Without this check the
+    # endpoint would happily read any file that happens to sit in the folder
+    # directory, whether it was ingested or not.
+    if safe_name not in folder.documents:
+        raise HTTPException(404, "Document not found")
+
+    file_path = _folder_files_dir(folder_id) / safe_name
     if not file_path.exists():
         raise HTTPException(404, "File not found on disk")
 
-    suffix = file_path.suffix.lower()
     media_types = {
         ".pdf": "application/pdf",
         ".txt": "text/plain",
         ".md": "text/markdown",
         ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     }
-    media_type = media_types.get(suffix, "application/octet-stream")
+    media_type = media_types.get(file_path.suffix.lower(), "application/octet-stream")
 
-    return FileResponse(path=file_path, filename=filename, media_type=media_type)
+    return FileResponse(path=file_path, filename=safe_name, media_type=media_type)
 
 
 @router.post("/api/folders/{folder_id}/upload", response_model=DocumentInfo)
@@ -166,8 +220,10 @@ async def upload_to_folder(folder_id: str, file: UploadFile = File(...)):
     if not folder:
         raise HTTPException(404, "Folder not found")
 
+    safe_name = _safe_filename(file.filename)
+
     persistent_dir = _folder_files_dir(folder_id)
-    persistent_path = persistent_dir / file.filename
+    persistent_path = persistent_dir / safe_name
 
     with open(persistent_path, "wb") as f:
         shutil.copyfileobj(file.file, f)
@@ -177,7 +233,7 @@ async def upload_to_folder(folder_id: str, file: UploadFile = File(...)):
         if count == 0:
             persistent_path.unlink(missing_ok=True)
             raise HTTPException(400, "No content could be extracted from this file")
-        return DocumentInfo(filename=file.filename, chunk_count=count)
+        return DocumentInfo(filename=safe_name, chunk_count=count)
     except HTTPException:
         raise
     except Exception as e:
@@ -262,15 +318,17 @@ async def upload_to_chat(chat_id: str, file: UploadFile = File(...)):
     if not chat:
         raise HTTPException(404, "Chat not found")
 
+    safe_name = _safe_filename(file.filename)
+
     tmp = Path(tempfile.mkdtemp())
     try:
-        dest = tmp / file.filename
+        dest = tmp / safe_name
         with open(dest, "wb") as f:
             shutil.copyfileobj(file.file, f)
         count = state.ingest_to_chat(chat_id, dest)
         if count == 0:
             raise HTTPException(400, "No content could be extracted from this file")
-        return DocumentInfo(filename=file.filename, chunk_count=count)
+        return DocumentInfo(filename=safe_name, chunk_count=count)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

@@ -112,5 +112,4 @@ python -m ingestion.store --folder "Linear Algebra" --source ./documents/linalg/
 | Backend | FastAPI | Serves the API and static frontend |
 | Frontend | Vanilla HTML / CSS / JS | Dark-themed chat interface, no build step |
 
-
-
+© 2026 Cagan Akin. All rights reserved. This repository is published only for review.
